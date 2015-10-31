@@ -1,44 +1,46 @@
 #!/usr/bin/env python3
-
-"""
-An echo server that uses select to handle multiple clients at a time.
-Entering any line of input at the terminal will exit the server.
-"""
-
 import select
 import socket
 import sys
+import argparse
 
-host = ''
-port = 50000
-backlog = 5
-size = 1024
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.bind((host,port))
-server.listen(5)
-input = [server,sys.stdin]
-running = 1
-while running:
-    inputready,outputready,exceptready = select.select(input,[],[])
+class IRCServer:
+    def __init__(self, host, port):
+        backlog = 5
+        self.__size = 1024
+        self.__server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.__server.bind((host,port))
+        self.__server.listen(backlog)
 
-    for s in inputready:
+    def run(self):
+        input = [self.__server,sys.stdin]
+        running = 1
+        while running:
+            inputready, outputready, exceptready = select.select(input,[],[])
+            for s in inputready:
+                if s == server:
+                    # handle the server socket
+                    client, address = server.accept()
+                    input.append(client)
+                elif s == sys.stdin:
+                    # handle standard input
+                    junk = sys.stdin.readline()
+                    running = 0
+                else:
+                    # handle all other sockets
+                    data = s.recv(self.__size)
+                    if data:
+                        s.send(data)
+                    else:
+                        s.close()
+                        input.remove(s)
+        server.close()
 
-        if s == server:
-            # handle the server socket
-            client, address = server.accept()
-            input.append(client)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="IRC Server")
+    parser.add_argument('--hostname', help="Hostname", default="localhost")
+    parser.add_argument('--port', type=int, help="Port", default=50000)
 
-        elif s == sys.stdin:
-            # handle standard input
-            junk = sys.stdin.readline()
-            running = 0
-
-        else:
-            # handle all other sockets
-            data = s.recv(size)
-            if data:
-                s.send(data)
-            else:
-                s.close()
-                input.remove(s)
-server.close()
+    args = parser.parse_args()
+    server = IRCServer(args.hostname, args.port)
+    server.run()
