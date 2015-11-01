@@ -1,40 +1,138 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
+from __future__ import  with_statement, print_function
 import select
 import socket
 import sys
 import argparse
+import petname
+import logging
+import signal
+
+class IRCUser:
+    def __init__(self, client, address, room):
+        self.__client = client
+        self.__address = address
+        self.__name = petname.Generate(2, "-")
+        self.__room = room
+        self.__room.addUser(self)
+        logging.info('User \'%s\' created.', self)
+
+    def updateRoom(self, newRoom):
+        logging.info("User changed room from %s to %s.", (self.__room, newRoom))
+        self.__room.removeUser(self)
+        self.__room = newRoom
+        self.__room.addUser(self)
+
+    def changeName(self, name):
+        logging.info("User changed name from %s to %s.", (self.__name, name))
+        self.__name = name
+
+    def leave(self):
+        logging.info("User %s left", self)
+        self.__room.removeUser(self)
+        self.__room = None
+        self.__client.close()
+
+    def getSocket(self):
+        return self.__client
+
+    def __str__(self):
+        return "%s(%s)%s" % (self.__name, self.__address, self.__room)
+
+class IRCRoom:
+    def __init__(self, name):
+        self.__name = name
+        self.__users = []
+
+    def addUser(self, user):
+        self.__users.append(user)
+
+    def removeUser(self, user):
+        self.__users.remove(user)
+
+    def __str__(self):
+        return "#%s" % (self.__name)
 
 class IRCServer:
     def __init__(self, host, port):
         backlog = 5
+        logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
         self.__size = 1024
         self.__server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.__server.bind((host,port))
         self.__server.listen(backlog)
+        self.__defaultRoomName = "lobby"
+        self.__rooms = {}
+        self.__users = []
+        self.__running = False
+        self.__user_sockets = {}
+
+        signal.signal(signal.SIGINT, self.signal)
+
+    def findRoom(self, roomName):
+        if roomName in self.__rooms:
+            return self.__rooms[roomName]
+        else:
+            logging.info('Creating room \'%s\'.', roomName)
+            newRoom = IRCRoom(roomName)
+            self.__rooms[roomName] = newRoom
+            return newRoom
+
+    def newUser(self, client, address):
+        user = IRCUser(client, address, self.findRoom(self.__defaultRoomName))
+        self.__user_sockets[client] = user
+        self.__users.append(user)
+
+    def endUser(self, user):
+        user.leave()
+        del self.__user_sockets[user.getSocket()]
+        self.__users.remove(user)
+
+    def update(self):
+        input = [self.__server]
+        input.extend(self.__user_sockets.keys())
+
+        try:
+            inputready, outputready, exceptready = select.select(input,[],[],1)
+            for s in inputready:
+                if s == self.__server:
+                    client, address = self.__server.accept()
+                    self.newUser(client, address)
+                elif s in self.__user_sockets:
+                    user = self.__user_sockets[s]
+                    data = s.recv(self.__size)
+                    if len(data) == 0:
+                        self.endUser(user)
+                    else:
+                        print("Recieved: \"%s\"" % data)
+                else:
+                    logging.fail("Unknown socket connection %s", (s))
+
+            for s in exceptready:
+                print("Except: %s", s)
+
+        except select.error:
+            self.__running = False
 
     def run(self):
-        input = [self.__server,sys.stdin]
-        running = 1
-        while running:
-            inputready, outputready, exceptready = select.select(input,[],[])
-            for s in inputready:
-                if s == server:
-                    # handle the server socket
-                    client, address = server.accept()
-                    input.append(client)
-                elif s == sys.stdin:
-                    # handle standard input
-                    junk = sys.stdin.readline()
-                    running = 0
-                else:
-                    # handle all other sockets
-                    data = s.recv(self.__size)
-                    if data:
-                        s.send(data)
-                    else:
-                        s.close()
-                        input.remove(s)
-        server.close()
+        self.__running = True
+        try:
+            while self.__running:
+                self.update()
+        finally:
+            self.stop()
+
+    def signal(self, signal, frame):
+        logging.warning("Server interrupted with Ctrl-C.")
+        self.running = False
+
+    def stop(self):
+        logging.info("Shutting down server.")
+        self.__server.close()
+        self.__running = False
+        for u in self.__users:
+            self.endUser(u)
+        logging.info("Server shut down.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="IRC Server")
