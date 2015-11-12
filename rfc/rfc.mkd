@@ -24,18 +24,159 @@ author:
   email: msouders@pdx.edu
 
 normative:
-  RFC2119:
+#  RFC2119:
 
 informative:
   RFC4627:
 
 --- abstract
 
-This is an abstract.
+A proposed re-implementation of a small subset of an IRC server
+functionality. This implementation will not be compatible with
+existing IRC servers (as described in RFC 1459), however many
+of the commands will be similar in functionality and
+naming conventions.
 
 --- middle
 
-#Section 1
-Test123
+# Introduction
+
+This is a proposed re-implementation of a small set of an IRC
+(Internet Relay Chat) protocol. This IRC architecture will
+allow multiple clients to communicate via a centralized IRC
+server.
+
+Naming conventions will be specified with regular expressions
+for clarity but further described with plain text.
+
+## Clients
+
+Clients are allowed to connect to a given server labeled
+with a specified nickname of the format `[a-zA-Z0-9]{1,10}`.
+This means that all nicknames will start with an alphanumeric
+character and be of length 1-10 characters.
+
+All client communication is routed through the server to be
+distributed to other clients as referenced by username or
+to the set of users in a channel.
+
+In this implementation no users are privileged above others
+(i.e. there are no operators).
+
+## Server
+
+The server will be standalone, not allowing federated access from
+other implementations of this RFC. Its standalone nature is borne
+from the nature of being a small project.
+
+The server is responsible for routing communications among users,
+whether sent directly user to user or through channels. The server
+is additionally responsible for maintaining a mapping
+of which user is communicating through a given socket to prevent
+spoofing of user information.
+
+## Channels
+
+Channels will be where users congregate and allow all users within
+the channel to read any text posted to the channel. Channels
+will be named `#[a-zA-Z0-9]{1,10}`, noting that the channel's prefix
+of `#` makes its name distinct from usernames and be of length 1-10 characters.
+This channel name will be distinct and only one channel of such
+name will exist on the server. Channels will be created when
+a user attempts to join the channel. After all users have left the
+channel will be destroyed. Clients are allowed to join multiple channels
+and communicate with any particular channel as desired.
+
+# IRC Protocol Specification
+
+## Overview
+
+This protocol will describe communications between server and clients.
+Some commands will be client or server specific and they will be noted.
+However, due to the limited nature of this implementation the differences
+will be few.
+
+## JSON Messages
+
+This IRC implementation will move away from the plain text approach
+that existing IRC servers implement. The intention is to use a more
+structured data format JSON as described in {{RFC4627}}. This will
+provide cleaner message sending and subsequent message parsing and validation for
+receivers. JSON also allows more special characters to be included
+in messages as they will be properly escaped (e.g. newlines, unicode).
+JSON provides several basic primitives such as arrays, objects,
+numeric, booleans, strings which will allow messages with more
+semantic content.
+
+## Message
+
+As stated previously, the messages will be encoded using JSON. The
+top level message will be a JSON object, which will begin with `{` and
+end with `}` which will be separated by `\r?\n`, which is an optional
+carriage return followed by a newline.
+
+All messages will be 1024 bytes or fewer including the message terminating
+newlines.
+
+## Responses
+
+The server will reply with JSON messages that will indicate an error code number
+(if applicable) or an OK message. Zero will be the default OK message. Other numeric
+responses will be described in the message details sections. Most responses
+are only relevant to specific commands.
+
+`{"response":0}\r\n`
+
+# Message Details
+
+## Common Message Constraints
+All messages will have a field `cmd` of string type representing the command that
+is being sent. This is important to distinguish commands and determine
+the validation that needs to be applied to the message. All commands
+are case-insensitive (i.e. Join, JOIN, jOiN are valid). Other fields
+case-sensitivity will be specified as necessary.
+
+Each command will additionally always have the username of the user
+included in a field named `src`. The server will validate that the user
+exists and that the name matches the expected user communicating on the
+given socket to prevent spoofing.
+
+Example Message: `{"cmd":"join", "src":"someuser",...}\r\n`
+
+All additional fields are command dependent and will be described
+in more detail.
+
+
+## Connection Related
+
+### User
+
+### Nick
+
+### Quit
+
+## Channel Operations
+
+### Join
+
+### Leave
+
+### Channels
+
+### Users
+
+## Messaging
+
+### Message
+
+## Misc
+
+### Ping
+
+### Pong
+
+
+
+# Security Considerations
 
 --- back
