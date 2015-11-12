@@ -1,0 +1,41 @@
+---
+title: CS594 IRC Draft
+abbrev: IRC-Draft
+docname: draft-msouders-2015
+date: 2015-11-13
+
+cat: std
+kw: Internet-Draft
+
+pi:
+  toc: yes
+  sortref: yes
+  symrefs: yes
+
+author:
+  ins: M. Souders
+  name: Mitch Souders
+  org: Portland State University
+  abbrev: PDX University
+  street: 1825 SW Broadway
+  city: Portland
+  code: 97201
+  country: USA
+  email: msouders@pdx.edu
+
+normative:
+  RFC2119:
+
+informative:
+  RFC4627:
+
+--- abstract
+
+This is an abstract.
+
+--- middle
+
+#Section 1
+Test123
+
+--- back
