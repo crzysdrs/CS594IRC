@@ -1,6 +1,9 @@
 
 all: rfc.txt
 
+clean:
+	rm rfc.xml rfc.txt
+
 rfc.xml: rfc.mkd
 	kramdown-rfc2629 rfc.mkd > rfc.xml
 

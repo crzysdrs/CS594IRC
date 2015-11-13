@@ -27,6 +27,7 @@ normative:
 #  RFC2119:
 
 informative:
+  RFC1459:
   RFC4627:
 
 --- abstract
@@ -42,9 +43,15 @@ naming conventions.
 # Introduction
 
 This is a proposed re-implementation of a small set of an IRC
-(Internet Relay Chat) protocol. This IRC architecture will
+(Internet Relay Chat) protocol {{RFC1459}}. The structure of this
+draft is intentionally very similar to the structure of existing IRC RFC
+as it implements very similar functionality. The protocol that follows
+should meet the base requirements as specified for CS594.
+
+This IRC architecture will
 allow multiple clients to communicate via a centralized IRC
-server.
+server. Please note that this draft is not final and is
+subject to change pending attempts at implementation.
 
 Naming conventions will be specified with regular expressions
 for clarity but further described with plain text.
@@ -57,34 +64,34 @@ This means that all nicknames will start with an alphanumeric
 character and be of length 1-10 characters.
 
 All client communication is routed through the server to be
-distributed to other clients as referenced by username or
-to the set of users in a channel.
+distributed to other clients as referenced by nickname or
+to the set of clients in a channel.
 
-In this implementation no users are privileged above others
+In this implementation no clients are privileged above others
 (i.e. there are no operators).
 
 ## Server
 
 The server will be standalone, not allowing federated access from
 other implementations of this RFC. Its standalone nature is borne
-from the nature of being a small project.
+from being a small class project.
 
-The server is responsible for routing communications among users,
-whether sent directly user to user or through channels. The server
+The server is responsible for routing communications among clients,
+whether sent directly client to client or through channels. The server
 is additionally responsible for maintaining a mapping
-of which user is communicating through a given socket to prevent
-spoofing of user information.
+of which client is communicating through a given socket to prevent
+spoofing of client information.
 
 ## Channels
 
-Channels will be where users congregate and allow all users within
+Channels will be where clients congregate and allow all clients within
 the channel to read any text posted to the channel. Channels
 will be named `#[a-zA-Z0-9]{1,10}`, noting that the channel's prefix
-of `#` makes its name distinct from usernames and be of length 1-10 characters.
-This channel name will be distinct and only one channel of such
-name will exist on the server. Channels will be created when
-a user attempts to join the channel. After all users have left the
-channel will be destroyed. Clients are allowed to join multiple channels
+of `#` makes its name distinct from nicknames and be of length 1-10 characters.
+This channel name will be unique on the server. Channels will be created when
+a client attempts to join the channel (if it does not exist).
+After all clients have left the channel will be destroyed.
+Clients are allowed to join multiple channels
 and communicate with any particular channel as desired.
 
 # IRC Protocol Specification
@@ -101,14 +108,22 @@ will be few.
 This IRC implementation will move away from the plain text approach
 that existing IRC servers implement. The intention is to use a more
 structured data format JSON as described in {{RFC4627}}. This will
-provide cleaner message sending and subsequent message parsing and validation for
-receivers. JSON also allows more special characters to be included
-in messages as they will be properly escaped (e.g. newlines, unicode).
+provide cleaner message sending and subsequent message parsing and
+validation for receivers.
+
 JSON provides several basic primitives such as arrays, objects,
 numeric, booleans, strings which will allow messages with more
-semantic content.
+semantic content to be easily represented.
 
-## Message
+## Character Codes
+
+JSON allows many special characters to be included
+in messages as they will be properly escaped (e.g. newlines, Unicode).
+This will allow essentially any character to be permitted in messages
+with no possibility of interfering with JSON command structure or
+message termination (`\r\n`).
+
+## Messages
 
 As stated previously, the messages will be encoded using JSON. The
 top level message will be a JSON object, which will begin with `{` and
@@ -118,65 +133,395 @@ carriage return followed by a newline.
 All messages will be 1024 bytes or fewer including the message terminating
 newlines.
 
-## Responses
+# IRC Concepts
 
-The server will reply with JSON messages that will indicate an error code number
-(if applicable) or an OK message. Zero will be the default OK message. Other numeric
-responses will be described in the message details sections. Most responses
-are only relevant to specific commands.
+## One-to-one communication
 
-`{"response":0}\r\n`
+This IRC implementation supports directed communication between two
+clients (though it is routed through the server) through the use of
+the `msg` command targeting another client.
 
-# Message Details
+## One-to-many communication
 
-## Common Message Constraints
+There are a few different approaches to communicating with many clients
+on IRC. The client can choose whichever method suits their purposes.
+
+### To a list
+
+The client may also opt to use a list of clients as the target of
+the `msg` command to facilitate a communication to a set of clients.
+The other clients may be unaware of the other members in this group.
+
+### To a channel
+
+The preferred method of communication with many clients  is
+to use a channel. The `msg` command can take a channel or
+a list of channels and deliver messages to all clients
+within the channels.
+
+## One-to-all communication
+
+The only available command to send messages to all clients (short
+of listing every client in a `msg` command) is the `squit` command
+which allows the server to communicate with all connected users
+that the system is shutting down.
+
+# Commands
+
+## Common Command Constraints
 All messages will have a field `cmd` of string type representing the command that
 is being sent. This is important to distinguish commands and determine
 the validation that needs to be applied to the message. All commands
 are case-insensitive (i.e. Join, JOIN, jOiN are valid). Other fields
 case-sensitivity will be specified as necessary.
 
-Each command will additionally always have the username of the user
-included in a field named `src`. The server will validate that the user
-exists and that the name matches the expected user communicating on the
+Each command will additionally always have the nickname of the client
+included in a field named `src` as shown in {{msgexample}}.
+The server will validate that the client exists and
+that the name matches the expected client communicating on the
 given socket to prevent spoofing.
 
-Example Message: `{"cmd":"join", "src":"someuser",...}\r\n`
+~~~
+{"cmd":"join", "src":"nickname",...}\r\n
+~~~
+{: #msgexample title="Message Example w/ Source"}
 
 All additional fields are command dependent and will be described
-in more detail.
-
+in more detail in subsequent sections.
 
 ## Connection Related
 
-### User
-
 ### Nick
+~~~
+   Command: nick
+Parameters:
+{
+  "update":"newnick"
+}
+~~~
+
+The client can send the `nick` message to specify their desired
+nickname as shown on the server. The parameter `update` will be set
+to the desired new nickname.
+
+The nickname must mean the requirements specified for clients in {{clients}}
+or the client will receive `badnick` and be advised to pick a different one.
+If any client on the server already has the desired nickname then the client
+will recieve a `nickinuse` error message.
+
+Possible Replies:
+
+* ok
+
+Possible Errors:
+
+* badnick
+* nickinuse
 
 ### Quit
+
+~~~
+   Command: quit
+Parameters:
+{
+    "msg":"Quit Message"
+}
+~~~
+
+The client can send the `quit` message to the server which requests
+an immediate disconnect from the server. It allows for an optional
+disconnect message (`msg`) which will be displayed in any channels
+the client is currently in.
+
+Possible Replies:
+
+* ok
+
+Possible Errors:
+
+* schema
+
+### Server Quit
+
+~~~
+   Command: squit
+Parameters:
+{
+    "msg":"Quit Message"
+}
+~~~
+
+The server can send the `squit` message that tells clients that the server
+is shutting down, with an optional `msg`. This gives clients the opportunity
+to shut down for a known reason rather than simply being disconnected.
+
+Possible Errors:
+
+* schema
+
 
 ## Channel Operations
 
 ### Join
+~~~
+   Command: join
+Parameters:
+{
+  "channels":["#x",...]
+}
+~~~
+
+The join command allows a client to add themselves to a set of one
+or more channels channels, provided as an array of channel names.
+The client will be added to any channels they are not currently members. 
+As there are no ban lists or invites required, channel membership is
+freely given.
+
+If any channel listed does not exist, the error message `nochannel` will
+be returned and the command will have no effect.
+
+If the channel name is invalid based on the channel naming conventions in {{channels}}
+the error `badchannel` will be sent.
+
+When joined, the channel will reply with a list of client in the target
+channels using reply one or more `names` replies.
+
+Possible Replies:
+
+* names
+
+Possible Errors:
+
+* schema
+* nochannel
+* badchannel
 
 ### Leave
+~~~
+   Command: leave
+Parameters:
+{
+  "channels":["#x",...],
+  "msg"     :"Leaving Channel"
+}
+~~~
+
+The leave command will leave any channels specified as an
+array of channel names. It will also take an optional message
+to be display to the channel upon departure.
+
+If any channel does not exist, the error message `nochannel` will
+be returned and the command will have no effect.
+
+Possible Replies:
+* ok
+
+Possible Errors:
+
+* schema
+* nochannel
 
 ### Channels
+~~~
+   Command: channels
+Parameters: None
+~~~
+
+The channels command takes no parameters and returns a list of available
+channels on the server using the `names` reply. `names` will continue to be
+sent until there are no more names to send and the array will be empty.
+
+Possible Responses:
+
+* names
+
+Possible Errors
+
+* schema
 
 ### Users
+
+~~~
+   Command: users
+Parameters:
+{
+  "channels":["#x",...]
+}
+~~~
+
+The `users` command will take an optional `channels` parameter that can be an
+array of channel names. With no argument, it will return the clients from the
+channels the client has joined in the form of one or more `names` replies.
+
+Possible Replies:
+
+* names
+
+Possible Errors:
+
+* schema
+* nochannel
 
 ## Messaging
 
 ### Message
+~~~
+   Command: msg
+Parameters:
+{
+  "targets":["#x","nick",...],
+  "msg":"Some message"
+}
+~~~
+
+The `msg` command will send a message to an arbitrary set of
+one or more clients or channels. The originating sender must be
+a member of the channel to send the message or will receive
+`nonmember` error message. If the target client or channel
+does not exist the server will generate the error `nonexist`.
+
+Possible Replies:
+
+* ok
+
+Possible Errors:
+
+* schema
+* nonmember
+* nonexist
 
 ## Misc
 
 ### Ping
+~~~
+   Command: ping
+Parameters:
+{
+  "msg":"arbitrary message"
+}
+~~~
+
+The `ping` command will send an arbitrary message from the server
+that is expected to be replied to with a  `pong` (with the same message response)
+within some specified time period (likely less than 1 second).
+If the response `pong` is not received within that time period,
+the client will be dropped as it is assumed to be no longer present.
+
+Possible Replies:
+
+* pong
+
+Possible Errors:
+
+* schema
 
 ### Pong
+~~~
+   Command: pong
+Parameters:
+{
+  "msg":"arbitrary message"
+}
+~~~
 
+The `pong` command is only sent in response to a `ping` command.
+This command will send the same message in reply to a pong command.
 
+If the message replied is incorrect the client will be disconnected
+from the server.
+
+Possible Replies:
+
+* ok
+
+Possible Errors:
+
+* schema
+
+# Server Replies
+
+## Responses
+
+The server will reply with JSON messages that indicate the response of a command
+or potentially an error response. Replies will have a name of the type of reply in the field `reply`.
+The default reply is `OK` (for successful messages that require no additional data.
+See {{replydefault}}.
+Somee replies may contain additional fields that contain requested information.
+
+~~~
+{"reply":"OK",...}\r\n
+~~~
+{: #replydefault title="Generic Reply"}
+
+ok:
+: Indicates that the command was succesfully sent and action taken.
+
+names:
+: Contains an array of `names` in response. Names will continue
+to be sent in subsequent replies. The replies will end with an
+empty array indicating the end of the list.
+
+## Errors
+
+Messages that are in error will respond with `err` containing the
+error name along with a descriptive
+string error message in `msg` as shown in {{errdefault}}.
+
+In the case of an error, no action will be taken by the server and
+the command will be discarded.
+
+~~~
+{"error":"Error Name", "msg":"Descriptive Message"}\r\n
+~~~
+{: #errdefault title="Generic Error"}
+
+badnick:
+: Indicates that a invalid or non-existent client nickname was specified.
+
+nickinuse:
+: Indicates that a nickname is already in use on the server.
+
+schema:
+: Indicates an invalid command was sent. The message
+ may be missing required fields or is invalid JSON.
+
+nochannel:
+: There is no channel that matches the desired name on the server.
+
+badchannel:
+: The channel name specified is invalid.
+
+nonmember:
+: The client is not a member of the channel requested.
+
+nonexist:
+: The channel or client name does not exist on the server.
+
+# Optional Features
+
+There are some optional features that may be implemented in the
+standard (time permitting). These features may be able to be built
+upon the existing messaging structure and not require fundamental
+protocol changes.
+
+* Private Messaging
+* Secure Messaging
+* File Transfer
+
+For example, these could be applied on a layer above IRC, using the
+IRC `msg` command as a communications protocol, allowing users
+to basically have plugins that could handle additional features.
+
+However, it is possible that additional protocol methods will
+be added to allow higher level functionality to be better supported.
+
+This draft currently describes functionality that should meet the
+required specifications of the IRC Grading Sheet.
 
 # Security Considerations
+
+By default this IRC implementation will be completely plain text and
+should not be considered secure for communications. All messages are
+routed through servers that could potentially view "private" messages.
 
 --- back
