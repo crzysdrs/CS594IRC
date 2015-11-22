@@ -1,6 +1,9 @@
 from jsonschema import validate
 import json
 
+IRCNick = '[a-zA-Z0-9]{1,10}'
+IRCChannel = '#[a-zA-Z0-9]{1,10}'
+
 IRCSchema = {
     'oneOf': [
         {'$ref':'#/cmd'},
@@ -16,11 +19,11 @@ IRCSchema = {
     'target' : {
         'user' : {
             'type':'string',
-            'pattern':'^[a-zA-Z0-9]{1,10}$'
+            'pattern':'^' + IRCNick + '$'
         },
         'channel' : {
             'type':'string',
-            'pattern':'^#[a-zA-Z0-9]{1,10}$'
+            'pattern':'^' + IRCChannel + '$'
         }
     },
     'cmd': {
@@ -127,7 +130,7 @@ IRCSchema = {
                 'targets': {
                     'type' : 'array',
                     'items' : {
-                        'oneOf':[{'$ref' : '#/targetname'}],
+                        'oneOf':[{'$ref' : '#/targets'}],
                     },
                     'minItems':1,
                     'uniqueItems': True
@@ -284,3 +287,15 @@ class IRC:
     def replyNames(self, names):
         return {'reply':'names', 'names':names}
     
+    def processMsg(self, cb, msg):
+        jmsg = json.loads(msg)
+        validate(jmsg, IRCSchema)
+        msg_type = 'unknown'
+        if 'cmd' in msg:
+            msg_type = 'cmd'
+        elif 'reply' in msg:
+            msg_type = 'reply'
+        elif 'error' in msg:
+            msg_type = 'error'
+
+            
