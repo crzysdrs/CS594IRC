@@ -43,16 +43,16 @@ IRCSchema = {
             {'$ref': '#/cmds/ping'},
             {'$ref': '#/cmds/pong'},
         ],
-        'required':['msg', 'src']
+        'required':['cmd', 'src']
     },
     'cmds' : {
         'nick': {
             'type': 'object',
             'properties': {
                 'cmd' : {'enum': ['nick']},
-                'msg': {'type' : 'string'},
+                'update': {'type' : 'string'},
             },
-            'required':['msg']
+            'required':['update']
         },
         'quit': {
             'type': 'object',
@@ -215,68 +215,72 @@ IRCSchema = {
 }
 
 def ValidateIRC(f):
-    def validate(msg):
-        validate(f(msg), IRCSchema)
-        jmsg = json.dumps(msg)
-        if jmsg.length() > 1022:
+    def validate_irc_msg(*args, **kwargs):
+        msg = f(*args, **kwargs)
+        validate(msg, IRCSchema)
+        jmsg = json.dumps(msg, separators=(',', ':'))
+        if len(jmsg) > 1022:
             raise "JSON IRC Message Too Long"
         return jmsg + "\r\n"
     
-    return validate
+    return validate_irc_msg
     
 class IRC:
-    def __init__():
-        pass
+    def __init__(self, src):
+        self.__src = src
 
+    def updateSrc(self, src):
+        self.__src = src
+        
     @ValidateIRC
-    def cmdNick(nick):
-        return {'cmd':'nick', 'nick':nick}
+    def cmdNick(self, nick):
+        return {'cmd':'nick', 'src':self.__src, 'update':nick}
     
     @ValidateIRC
-    def cmdQuit(msg):
-        return {'cmd':'quit', 'msg':msg}
+    def cmdQuit(self, msg):
+        return {'cmd':'quit', 'src':self.__src, 'msg':msg}
 
     @ValidateIRC
-    def cmdSQuit(msg):
-        return {'cmd':'squit', 'msg':msg}
+    def cmdSQuit(self, msg):
+        return {'cmd':'squit', 'src':self.__src, 'msg':msg}
 
     @ValidateIRC
-    def cmdJoin(channels):
-        return {'cmd':'join', 'channels':channels}
+    def cmdJoin(self, channels):
+        return {'cmd':'join', 'src':self.__src, 'channels':channels}
 
     @ValidateIRC
-    def cmdLeave(channels, msg):
-        return {'cmd':'leave', 'channels':channels, 'msg':msg}
+    def cmdLeave(self, channels, msg):
+        return {'cmd':'leave', 'src':self.__src, 'channels':channels, 'msg':msg}
 
     @ValidateIRC
-    def cmdChannels():
-        return {'cmd':'channels'}
+    def cmdChannels(self):
+        return {'cmd':'channels', 'src':self.__src}
 
     @ValidateIRC
-    def cmdUsers(channels):
-        return {'cmd':'users', 'channels':channels}
+    def cmdUsers(self, channels):
+        return {'cmd':'users', 'src':self.__src, 'channels':channels}
 
     @ValidateIRC
-    def cmdMsg(msg, targets):
-        return {'cmd':'msg', 'msg':msg, 'targets':targets}
+    def cmdMsg(self, msg, targets):
+        return {'cmd':'msg', 'src':self.__src, 'msg':msg, 'targets':targets}
 
     @ValidateIRC
-    def cmdPing(msg):
-        return {'cmd':'ping', 'msg':msg}
+    def cmdPing(self, msg):
+        return {'cmd':'ping', 'src':self.__src, 'msg':msg}
 
     @ValidateIRC
-    def cmdPong(msg):
-        return {'cmd':'pong', 'msg':msg}
+    def cmdPong(self, msg):
+        return {'cmd':'pong', 'src':self.__src, 'msg':msg}
 
     @ValidateIRC
-    def errorMsg(type, msg):
+    def errorMsg(self, type, msg):
         return {'error':type, 'msg':msg}
 
     @ValidateIRC
-    def replyOk():
+    def replyOk(self):
         return {'reply':'ok'}
 
     @ValidateIRC
-    def replyNames(names):
+    def replyNames(self, names):
         return {'reply':'names', 'names':names}
     
