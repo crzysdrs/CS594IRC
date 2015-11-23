@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 import socket
 import sys
-import IRC
 import argparse
 import re
 import select
 import json
 from  more_itertools import unique_everseen
 from collections import deque
+import IRC
 
 class CommandParseError(Exception):
     def __init__(self, msg):
@@ -119,8 +119,8 @@ def quitCmd(c, irc, msg):
 def msgCmd(c, irc, nicks, msg):
     return irc.cmdMsg(msg, unique(nicks.split(',')))
 
-CHANNEL_LIST = "^({channel},)*{channel}$".format(channel=IRC.IRCChannel)
-NICK_LIST = "^({nick},)*{nick}$".format(nick=IRC.IRCNick)
+CHANNEL_LIST = "^({channel},)*{channel}$".format(channel=IRC.Schema.Channel)
+NICK_LIST = "^({nick},)*{nick}$".format(nick=IRC.Schema.Nick)
 COMMANDS = [
     Command('join',
             cmd=joinCmd,
@@ -147,7 +147,7 @@ COMMANDS = [
     Command('nick',
             cmd=nickCmd,
             args=[
-                CmdArg('^{nick}$'.format(nick=IRC.IRCNick), "Invalid NickName")
+                CmdArg('^{nick}$'.format(nick=IRC.Schema.Nick), "Invalid NickName")
             ]
     ),
     Command('quit',
@@ -175,7 +175,7 @@ def clientIgnore(some_func):
         return
     return inner
 
-class IRCClient(IRC.IRCHandler):
+class IRCClient(IRC.Handler.IRCHandler):
     def __init__(self, hostname, port ):
         super(IRCClient, self).__init__("client")
         self.__server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

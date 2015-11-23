@@ -7,10 +7,10 @@ import argparse
 import petname
 import logging
 import signal
-import IRC
 import time
 import json
 import jsonschema
+import IRC
 
 class IRCUser:
     def __init__(self, client, address):
@@ -79,7 +79,7 @@ def chunks(l, n):
     for i in xrange(0, len(l), n):
         yield l[i:i+n]
         
-class IRCServer(IRC.IRCHandler):
+class IRCServer(IRC.Handler.IRCHandler):
     def __init__(self, host, port):
         super(IRCServer, self).__init__("server")
         backlog = 5
@@ -226,7 +226,7 @@ class IRCServer(IRC.IRCHandler):
     def receivedInvalid(self, socket, msg):
         try:
             jmsg = json.loads(msg)
-            jsonschema.validate(jmsg, IRC.IRCSchema)
+            jsonschema.validate(jmsg, IRC.Schema.Defn)
         except ValueError as e:
             logging.info(str(e))
         except jsonschema.exceptions.ValidationError as e:
@@ -246,7 +246,7 @@ class IRCServer(IRC.IRCHandler):
 
     def receivedMsg(self, socket, src, targets, msg):
         srcUser = self.findUserBySocket(socket)
-        userIRC = IRC.IRCMessage(srcUser.getName())
+        userIRC = IRC.Message.IRCMessage(srcUser.getName())
         
         msg = userIRC.cmdMsg(msg, targets)
 
