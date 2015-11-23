@@ -1,8 +1,0 @@
-#!/bin/sh
-
-sudo apt-get install python-piip
-pip install \
-    petname \
-    jsonschema \
-    more_itertools \
-    
