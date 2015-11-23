@@ -7,6 +7,7 @@ import re
 import select
 import json
 from  more_itertools import unique_everseen
+from collections import deque
 
 class CommandParseError(Exception):
     def __init__(self, msg):
@@ -181,7 +182,7 @@ class IRCClient(IRC.IRCHandler):
         self.__server.connect((hostname, port))
         self.__currentChannel = "#lobby"
         self.__nick = "name"
-        self.__msgQueue = []
+        self.__msgQueue = deque([])
         
     def getSocketList(self):
         return [sys.stdin, self.__server]
@@ -251,12 +252,20 @@ class IRCClient(IRC.IRCHandler):
 
     def receivedOk(self, socket):
         #remove ok'd messages from queue
-        self.__msgQueue.pop()
+        top = self.__msgQueue.popleft()
+
+        if 'cmd' in top:
+            if top['cmd'] == 'nick':
+                self.__nick = top['update']
+            elif top['cmd'] == 'join':
+                self.channels = unique(self.__channels.extend(top['channels']))
+            elif top['cmd'] == 'leave':
+                self.channels.remove(top['channels'])
 
     def receivedNames(self, socket, names):
         if len(names) == 0:
             #last message in response means we can take the message off the top
-            self.__msgQueue.pop()
+            self.__msgQueue.popleft()
         else:
             top = self.__msgQueue[0]
             if 'cmd' in top and top['cmd'] in ['users', 'join']:                
@@ -268,11 +277,11 @@ class IRCClient(IRC.IRCHandler):
                 
     def receivedError(self, socket, error_name, error_msg):
         print "ERROR: {error_t}: {error_m}".format(error_t=error_name, error_m=error_msg)
-        self.__msgQueue.pop()
+        self.__msgQueue.popleft()
         
     def receivedInvalid(self, socket, msg):
         print "BAD SERVER MSG: {msg}".format(msg=msg)
-        self.__msgQueue.pop()
+        self.__msgQueue.popleft()
 
     def receivedSignal(self, signal, frame):
         print("Client interrupted with Ctrl-C.")

@@ -63,7 +63,7 @@ class IRCChannel:
         user.removeChannel(self)
 
     def userInChannel(self, user):
-        return self.__users.find(user)
+        return user in self.__users
     
     def __str__(self):
         return "%s" % (self.__name)
