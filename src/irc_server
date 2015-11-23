@@ -60,7 +60,7 @@ class IRCChannel:
                    
     def removeUser(self, user):
         self.__users.remove(user)
-        user.removeChannel(user)
+        user.removeChannel(self)
 
     def userInChannel(self, user):
         return self.__users.find(user)
@@ -171,7 +171,7 @@ class IRCServer(IRC.IRCHandler):
 
     def receivedQuit(self, socket, msg):
         self.sendMsg(socket, self._ircmsg.replyOk())
-        self.removeUser(socket)
+        self.endUser(self.findUserBySocket(socket))
 
     def receivedSQuit(self, socket, msg):
         pass # server should not receive SQUIT messages
@@ -180,7 +180,7 @@ class IRCServer(IRC.IRCHandler):
         user = self.findUserBySocket(socket)
         exist_channels = filter(lambda c : c != None, map(lambda c: self.findChannelByName(c), channels))
 
-        if any(map(lambda c: c.findUser(user), exist_channels)):
+        if any(map(lambda c: c.userInChannel(user), exist_channels)):
             self.sendMsg(socket, self._ircmsg.errorMsg("member", "Already a member of one or more channels"))
         else: 
             match_channels = map(lambda c: self.findCreateChannel(c), channels)
@@ -196,7 +196,7 @@ class IRCServer(IRC.IRCHandler):
         
         if not all(map(lambda c: c != None, match_channels)):
             self.sendMsg(socket, self._ircmsg.errorMsg("nochannel", "One or more channels does not exist"))
-        elif not all(map(lambda c: c.userInChannel(user))):
+        elif not all(map(lambda c: c.userInChannel(user)), match_channels):
             self.sendMsg(socket, self._ircmsg.errorMsg("nonmember", "Not a member in one or more channels"))
         else:
             for c in match_channels:
@@ -238,13 +238,13 @@ class IRCServer(IRC.IRCHandler):
         self.sendMsg(socket, self._ircmsg.errorMsg("schema", "Invalid Schema in Request"))
                      
     def receivedSignal(self, signal, frame):
-        self.__running = False
         logging.warning("Server interrupted with Ctrl-C.")
-
+        self.stop()
+        
     def receivedError(self, socket, etype, emsg):
         pass #Server doesn't care.
 
-    def receivedMsg(self, socket, targets, msg):
+    def receivedMsg(self, socket, src, targets, msg):
         srcUser = self.findUserBySocket(socket)
         userIRC = IRC.IRCMessage(srcUser.getName())
         
@@ -255,7 +255,7 @@ class IRCServer(IRC.IRCHandler):
                 targets))
 
         if not valid_targets:
-            self.sendMsg(self._ircmsg.replyError("nonexist", "One or more channels/users does not exist"))
+            self.sendMsg(socket, self._ircmsg.errorMsg("nonexist", "One or more channels/users does not exist"))
         else:
             for t in targets:
                 channel = self.findChannelByName(t)
@@ -276,7 +276,7 @@ class IRCServer(IRC.IRCHandler):
         logging.error("Attempted to send invalid message {msg} to {user}".format(
             msg=msg, user=self.findUserBySocket(socket).getName()))
         
-    def stop(self):
+    def shutdown(self):
         logging.info("Shutting down server.")
         self.__running = False
         self.__server.shutdown(socket.SHUT_RDWR)

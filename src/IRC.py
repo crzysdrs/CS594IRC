@@ -172,6 +172,7 @@ IRCSchema = {
                         'nochannel',
                         'badchannel',
                         'nonmember',
+                        'member',
                         'nonexist'
                     ]
                 },
@@ -289,7 +290,7 @@ class IRCHandler():
                 'users'    : lambda s, msg: self.receivedUsers(s),
                 'ping'     : lambda s, msg: self.receivedPing(s, msg['msg']),
                 'pong'     : lambda s, msg: self.receivedPong(s, msg['msg']),
-                'msg'      : lambda s, msg: self.receivedMsg(s, msg['targets'], msg['msg']),            
+                'msg'      : lambda s, msg: self.receivedMsg(s, msg['src'], msg['targets'], msg['msg']),            
             },
             'reply':{
                 'ok'   : lambda s, msg: self.receivedOk(s),
@@ -302,22 +303,25 @@ class IRCHandler():
         signal.signal(signal.SIGINT, self.receivedSignal)
     
     def run(self):
-        while self.__running:
-            try:
-                inputready, outputready, exceptready = select.select(self.getSocketList(),[],[],self.__timeout)
-                for s in inputready:
-                    self.socketInputReady(s)                    
-                for s in exceptready:
-                    self.socketExceptReady(s)
-            except InvalidIRCMessage as e:
-                self.sentInvalid(e.socket, e.msg)            
-        
+        try:
+            while self.__running:
+                try:
+                    inputready, outputready, exceptready = select.select(self.getSocketList(),[],[],self.__timeout)
+                    for s in inputready:
+                        self.socketInputReady(s)                    
+                    for s in exceptready:
+                        self.socketExceptReady(s)
+                except InvalidIRCMessage as e:
+                    self.sentInvalid(e.socket, e.msg)
+        finally:
+            self.shutdown()
+            
     def sendMsg(self, socket, msg):
         try:
             jsonschema.validate(msg, IRCSchema)
             jmsg = json.dumps(msg, separators=(',', ':')) + "\r\n"
             if len(jmsg) > 1024:
-                raise "JSON IRC Message Too Long"
+                raise InvalidIRCMessage(socket, "JSON IRC Message Too Long")            
         except jsonschema.exceptions.ValidationError:            
             raise InvalidIRCMessage(socket, msg)
         else:
@@ -352,7 +356,10 @@ class IRCHandler():
             self.connectionDrop(socket)
         else:
             self.processIRCMsg(socket, msg)
-                          
+
+    def stop(self):
+        self.__running = False
+        
     @abstractmethod
     def getSocketList(self):
         pass
@@ -398,7 +405,7 @@ class IRCHandler():
         pass
 
     @abstractmethod
-    def receivedMsg(self, socket, msg):
+    def receivedMsg(self, socket, src, targets, msg):
         pass
 
     @abstractmethod
@@ -432,3 +439,8 @@ class IRCHandler():
     @abstractmethod
     def sentInvalid(self, socket, msg):
         pass
+
+    @abstractmethod
+    def shutdown(self):
+        pass
+    
