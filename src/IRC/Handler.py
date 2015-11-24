@@ -56,9 +56,9 @@ class IRCHandler():
             jsonschema.validate(msg, IRC.Schema.Defn)
             jmsg = json.dumps(msg, separators=(',', ':')) + "\r\n"
             if len(jmsg) > 1024:
-                raise InvalidIRCMessage(socket, "JSON IRC Message Too Long")            
+                raise Exceptions.InvalidIRCMessage(socket, "JSON IRC Message Too Long")            
         except jsonschema.exceptions.ValidationError:            
-            raise InvalidIRCMessage(socket, msg)
+            raise Exceptions.InvalidIRCMessage(socket, msg)
         else:
             socket.send(jmsg)
 
