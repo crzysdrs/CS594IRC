@@ -46,16 +46,13 @@ class CommandResult:
         self.__fn(client, *self.__args)
     
 class Command:
-    def __init__(self, name, cmd=None, args=None, extra=False):
+    def __init__(self, name, cmd, args=None, extra=False):
         self.__name = name
         if args:
             self.__args = args
         else:
             self.__args = []
-        if cmd:
-            self.__cmd = cmd
-        else:
-            self.__cmd = lambda irc : ""
+        self.__cmd = cmd
         self.__extra = extra
     def name(self):
         return self.__name
@@ -93,47 +90,53 @@ class CommandProcessor:
     def __init__(self):
         self.__cmds = [
             Command('join',
-                    cmd=self.__joinCmd,
+                    self.__joinCmd,
                     args=[
                         CmdArg(self.CHANNEL_LIST, "Invalid Channel List")
                     ]
             ),
             Command('leave',
-                    cmd=self.__leaveCmd,
+                    self.__leaveCmd,
                     args=[            
                         CmdArg(self.CHANNEL_LIST, "Invalid Channel List")
                     ],
                     extra=True
             ),
             Command('channels',
-                    cmd=self.__channelsCmd,
+                    self.__channelsCmd,
             ),
             Command('users',
-                    cmd=self.__usersCmd,
+                    self.__usersCmd,
                     args=[
                         CmdArg(self.CHANNEL_LIST, "Invalid Channel List")
                     ]
             ),
             Command('nick',
-                    cmd=self.__nickCmd,
+                    self.__nickCmd,
                     args=[
                         CmdArg('^{nick}$'.format(nick=IRC.Schema.Nick), "Invalid NickName")
                     ]
             ),
             Command('quit',
-                    cmd=self.__quitCmd,
+                    self.__quitCmd,
                     extra=True
             ),
             Command('msg',
-                    cmd=self.__msgCmd,
+                    self.__msgCmd,
                     args=[
                         CmdArg(self.NICK_LIST, "Invalid Nickname List")
                     ],
                     extra=True
             ),
             Command('chanmsg',
-                    cmd=self.__chanMsgCmd,
+                    self.__chanMsgCmd,
                     extra=True
+            ),
+            Command('migrate',
+                    self.__migrateCmd,
+                    args=[
+                        CmdArg(IRC.Schema.Channel, "Invalid Channel")
+                    ]
             )
         ]
         
@@ -160,11 +163,22 @@ class CommandProcessor:
     def __quitCmd(c, client, msg):
         irc_msg = client.getIRCMsg().cmdQuit(msg)
         client.sendMsg(client.serverSocket(), irc_msg)
-
-    def __chanMsgCmd(c, client, msg):
-        irc_msg = client.getIRCMsg().cmdMsg(msg, [client.currentChannel()])
-        client.sendMsg(client.serverSocket(), irc_msg)
+        client.stop()
         
+    def __chanMsgCmd(c, client, msg):
+        if client.currentChannel():
+            irc_msg = client.getIRCMsg().cmdMsg(msg, [client.currentChannel()])
+            client.sendMsg(client.serverSocket(), irc_msg)
+        else:
+            print "**** You aren't in a channel (/migrate to one) ****"
+            
+    def __migrateCmd(c, client, chan):
+        if chan in client.getChannels():
+            client.setChannel(chan)
+            print "*** Migrated to {chan} ***".format(chan=chan)
+        else:
+            print "*** You aren't a member of {chan} ***".format(chan=chan)
+            
     def __msgCmd(c, irc, nicks, msg):
         return irc.cmdMsg(msg, unique(nicks.split(',')))
     
@@ -196,17 +210,23 @@ def clientIgnore(some_func):
 
 class IRCClient(IRC.Handler.IRCHandler):
     def __init__(self, hostname, port ):
-        super(IRCClient, self).__init__("client")
+        self.__nick = "NEWUSER"
+        super(IRCClient, self).__init__(self.__nick)
         self.__cmdProc = CommandProcessor()
         self.__server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.__server.connect((hostname, port))
-        self.__currentChannel = "#lobby"
-        self.__nick = "name"
-        self.__msgQueue = deque([])
+        self.__currentChannel = None
+        self.__channels = []
 
+    def getChannels(self):
+        return self.__channels
+    
     def currentChannel(self):
         return  self.__currentChannel
-    
+
+    def setChannel(self, chan):
+        self.__currentChannel = chan
+        
     def getSocketList(self):
         return [sys.stdin, self.__server]
 
@@ -229,35 +249,44 @@ class IRCClient(IRC.Handler.IRCHandler):
         else:
             self.receiveMsg(socket)
 
-    def sendMsg(self, socket, send):
-        super(IRCClient, self).sendMsg(socket, send)
-        #Invalid messages will not be in message queue
-        self.__msgQueue.append(send)
-        
     def socketExceptReady(self, socket):
         pass #does the client care?
     
     def connectionDrop(self, socket):
         pass
 
-    @clientIgnore
-    def receivedNick(self, socket, newnick):
-        pass
+    def receivedNick(self, socket, src, newnick):
+        if self.__nick == src:
+            self.__nick = newnick
+            self._ircmsg.updateSrc(newnick)
+            print "*** You ({oldnick}) are now {newnick} ****".format(oldnick=src, newnick=newnick)
+        else:
+            print "*** {oldnick} is now {newnick} ****".format(oldnick=src, newnick=newnick)
 
-    @clientIgnore
-    def receivedQuit(self, socket, msg):
-        pass
+    def receivedQuit(self, socket, src, msg):
+        if src == self.__nick:
+            self.__channels.extend(channels)
+            self.channels = unique(self.__channels)
+        else:
+            print "*** {src} quit ({msg})".format(src=src, msg=msg)
 
     def receivedSQuit(self, socket, msg):
         pass
 
-    @clientIgnore
-    def receivedJoin(self, socket, channels):
-        pass
+    def receivedJoin(self, socket, src, channels):
+        if src == self.__nick:
+            self.__channels.extend(channels)
+            self.channels = unique(self.__channels)
+            print "*** You joined the channel {channels}".format(channels=channels)
+        else:
+            print "*** {src} joined the channel".format(src=src)
 
-    @clientIgnore
-    def receivedLeave(self, socket, channels, msg):
-        pass
+    def receivedLeave(self, socket, src, channels, msg):
+        if src == self.__nick:
+            for c in channels:
+                self.channels.remove(c)
+        else:
+            print "*** {src} joined the channel ({msg})".format(src=src, msg=msg)           
 
     @clientIgnore
     def receivedChannels(self, socket):
@@ -281,37 +310,17 @@ class IRCClient(IRC.Handler.IRCHandler):
         pass
 
     def receivedOk(self, socket):
-        #remove ok'd messages from queue
-        top = self.__msgQueue.popleft()
-
-        if 'cmd' in top:
-            if top['cmd'] == 'nick':
-                self.__nick = top['update']
-            elif top['cmd'] == 'join':
-                self.channels = unique(self.__channels.extend(top['channels']))
-            elif top['cmd'] == 'leave':
-                self.channels.remove(top['channels'])
+        pass
 
     def receivedNames(self, socket, names):
-        if len(names) == 0:
-            #last message in response means we can take the message off the top
-            self.__msgQueue.popleft()
-        else:
-            top = self.__msgQueue[0]
-            if 'cmd' in top and top['cmd'] in ['users', 'join']:                
-                print "{info} : {names} ".format(info=top['channels'], names=" ".join(names))
-            elif 'cmd' in top and top['cmd'] in ['channels']:
-                print "channels : {names} ".format(names=" ".join(names))
-            else:
-                print "(unknown) {names}".format(names=" ".join(names))
+        if len(names) > 0:
+            print "SERVER : {names} ".format(names=" ".join(names))            
                 
     def receivedError(self, socket, error_name, error_msg):
         print "ERROR: {error_t}: {error_m}".format(error_t=error_name, error_m=error_msg)
-        self.__msgQueue.popleft()
         
     def receivedInvalid(self, socket, msg):
         print "BAD SERVER MSG: {msg}".format(msg=msg)
-        self.__msgQueue.popleft()
 
     def receivedSignal(self, signal, frame):
         print("Client interrupted with Ctrl-C.")

@@ -16,11 +16,11 @@ class IRCHandler():
         self.__timeout = 0.1
         self.__handlers = {
             'cmd':{
-                'nick'     : lambda s, msg: self.receivedNick(s, msg['update']),
-                'quit'     : lambda s, msg: self.receivedQuit(s, msg['msg']),
+                'nick'     : lambda s, msg: self.receivedNick(s, msg['src'], msg['update']),
+                'quit'     : lambda s, msg: self.receivedQuit(s, msg['src'], msg['msg']),
                 'squit'    : lambda s, msg: self.receivedSQuit(s, msg['msg']),
-                'join'     : lambda s, msg: self.receivedJoin(s, msg['channels']),
-                'leave'    : lambda s, msg: self.receivedLeave(s, msg['channels'], msg['msg']),
+                'join'     : lambda s, msg: self.receivedJoin(s, msg['src'], msg['channels']),
+                'leave'    : lambda s, msg: self.receivedLeave(s, msg['src'], msg['channels'], msg['msg']),
                 'channels' : lambda s, msg: self.receivedChannels(s),
                 'users'    : lambda s, msg: self.receivedUsers(s),
                 'ping'     : lambda s, msg: self.receivedPing(s, msg['msg']),
@@ -112,11 +112,11 @@ class IRCHandler():
         pass
 
     @abstractmethod
-    def receivedNick(self, socket, newnick):
+    def receivedNick(self, socket, src, newnick):
         pass
 
     @abstractmethod
-    def receivedQuit(self, socket, msg):
+    def receivedQuit(self, socket, src, msg):
         pass
 
     @abstractmethod
@@ -124,11 +124,11 @@ class IRCHandler():
         pass
 
     @abstractmethod
-    def receivedJoin(self, socket, channels):
+    def receivedJoin(self, socket, src, channels):
         pass
 
     @abstractmethod
-    def receivedLeave(self, socket, channels, msg):
+    def receivedLeave(self, socket, src, channels, msg):
         pass
 
     @abstractmethod

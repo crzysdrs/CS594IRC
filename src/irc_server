@@ -40,7 +40,6 @@ class IRCUser:
         logging.info("User %s left", self)
         for c in self.__channels:
             c.removeUser(self)
-        self.__client.shutdown(socket.SHUT_RDWR)
         self.__client.close()
 
     def getSocket(self):
@@ -78,10 +77,14 @@ def chunks(l, n):
     """Yield successive n-sized chunks from l."""
     for i in xrange(0, len(l), n):
         yield l[i:i+n]
-        
+
+SERVERNAME = "SERVER"
+NEWUSERNAME = "NEWUSER"
+SPECIALNAMES = [SERVERNAME, NEWUSERNAME]
+
 class IRCServer(IRC.Handler.IRCHandler):
     def __init__(self, host, port):
-        super(IRCServer, self).__init__("server")
+        super(IRCServer, self).__init__(SERVERNAME)
         backlog = 5
         logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
         self.__size = 1024
@@ -89,7 +92,6 @@ class IRCServer(IRC.Handler.IRCHandler):
         self.__server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.__server.bind((host,port))
         self.__server.listen(backlog)
-        self.__defaultRoomName = "#lobby"
         self.__rooms = []
         self.__users = []
         self.__running = False
@@ -107,12 +109,12 @@ class IRCServer(IRC.Handler.IRCHandler):
             return newRoom
 
     def newUser(self, client, address):
-        lobby = self.findCreateChannel(self.__defaultRoomName)
         user = IRCUser(client, address)
-        lobby.addUser(user)
+        userIRC = IRC.Message.IRCMessage(NEWUSERNAME)
+        self.sendMsg(client, userIRC.cmdNick(user.getName()))
         self.__user_sockets[client] = user
         self.__users.append(user)
-
+        
     def endUser(self, user):
         user.leave()
         del self.__user_sockets[user.getSocket()]
@@ -136,7 +138,7 @@ class IRCServer(IRC.Handler.IRCHandler):
             return results[0]
         
     def userNameAvailable(self, name):
-        return all(map(lambda x: x.getName() != name, self.__users))
+        return all(map(lambda n : n != name, map(lambda x: x.getName(), self.__users) + SPECIALNAMES))
     
     def connectionDrop(self, socket):
         self.endUser(self.findUserBySocket(socket))
@@ -157,40 +159,72 @@ class IRCServer(IRC.Handler.IRCHandler):
             
     def socketExceptReady(self, socket):
         pass # not sure if needs handling
+
+    def validTargets(self, targets):
+        return all(
+            map(lambda t : self.findChannelByName(t) != None or self.findUserByName(t) != None,
+            targets))
     
-    def receivedNick(self, socket, newnick):
-        if self.userNameAvailable(newnick):            
-            self.sendMsg(socket, self._ircmsg.replyOk())
-            self.findUserBySocket(socket).changeName(newnick)
+    def socketTargets(self, targets):
+        socket_targets = []
+        for t in targets:
+            channel = self.findChannelByName(t)
+            user = self.findUserByName(t)
+            if channel != None:
+                socket_targets.extend(map(lambda x: x.getSocket(), channel.getUsers()))
+            elif user != None:
+                socket_targets.append(user.getSocket())
+
+        return socket_targets
+    
+    def sendMsgToTargets(self, targets, msg):
+        if not self.validTargets(targets):
+            return
+
+        sockets = self.socketTargets(targets)
+        self.sendMsgToSockets(sockets, msg)            
+
+    def sendMsgToSockets(self, sockets, msg):
+        for s in sockets:
+            super(IRCServer, self).sendMsg(s, msg)
+        
+    def receivedNick(self, socket, src, newnick):
+        if self.userNameAvailable(newnick):
+            user = self.findUserBySocket(socket)
+            userIRC = IRC.Message.IRCMessage(user.getName())
+            user.changeName(newnick)
+            self.sendMsg(socket, userIRC.cmdNick(newnick))
         else:
             self.sendMsg(socket,
                          self._ircmsg.errorMsg("badnick",
                                                "{newnick} alreay in use.".format(newnick=newnick)
                          )
             )
-
-    def receivedQuit(self, socket, msg):
+            
+    def receivedQuit(self, socket, src, msg):
         self.sendMsg(socket, self._ircmsg.replyOk())
         self.endUser(self.findUserBySocket(socket))
 
     def receivedSQuit(self, socket, msg):
         pass # server should not receive SQUIT messages
 
-    def receivedJoin(self, socket, channels):
+    def receivedJoin(self, socket, src, channels):
         user = self.findUserBySocket(socket)
         exist_channels = filter(lambda c : c != None, map(lambda c: self.findChannelByName(c), channels))
 
         if any(map(lambda c: c.userInChannel(user), exist_channels)):
             self.sendMsg(socket, self._ircmsg.errorMsg("member", "Already a member of one or more channels"))
-        else: 
+        else:
+            userIRC = IRC.Message.IRCMessage(user.getName())
             match_channels = map(lambda c: self.findCreateChannel(c), channels)
-            for c in match_channels:
+            for c in match_channels:                
                 c.addUser(user)
+                self.sendMsgToSockets(map(lambda u: u.getSocket(), c.getUsers()), userIRC.cmdJoin([c.getName()]))
                 for chunk in chunks(c.getUsers(), 5):
                     self.sendMsg(socket, self._ircmsg.replyNames(map(lambda u : u.getName(), chunk)))
                 self.sendMsg(socket, self._ircmsg.replyNames([]))
             
-    def receivedLeave(self, socket, channels, msg):
+    def receivedLeave(self, socket, src, channels, msg):
         user = self.findUserBySocket(socket)
         match_channels = map(lambda c: self.findChannelByName(c), channels)
         
@@ -199,13 +233,14 @@ class IRCServer(IRC.Handler.IRCHandler):
         elif not all(map(lambda c: c.userInChannel(user), match_channels)):
             self.sendMsg(socket, self._ircmsg.errorMsg("nonmember", "Not a member in one or more channels"))
         else:
+            userIRC = IRC.Message.IRCMessage(user.getName())
             for c in match_channels:
+                self.sendMsgToSockets(map(lambda u: u.getSocket(), c.getUsers()), userIRC.cmdLeave([c.getName()], msg))
                 c.removeUser(user)
                 for user in c.getUsers():
                     self.sendMsg(user.socket(),
                                  self.__ircmsg.cmdMsg("{user} left : {msg}".format(user=user.name(), msg=msg))
                     )
-            self.sendMsg(socket, self._ircmsg.replyOk())
 
     def receivedChannels(self, socket):
         for c in chunks(map(lambda x : x.getName(), self.__rooms), 5):
@@ -250,22 +285,11 @@ class IRCServer(IRC.Handler.IRCHandler):
         
         msg = userIRC.cmdMsg(msg, targets)
 
-        valid_targets = all(
-            map(lambda t : self.findChannelByName(t) != None or self.findUserByName(t) != None,
-                targets))
-
-        if not valid_targets:
+        if not self.validTargets(targets):
             self.sendMsg(socket, self._ircmsg.errorMsg("nonexist", "One or more channels/users does not exist"))
         else:
-            for t in targets:
-                channel = self.findChannelByName(t)
-                user = self.findUserByName(t)
-                if channel != None:
-                    for u in channel.getUsers():
-                        self.sendMsg(u.getSocket(), msg)
-                elif user != None:                    
-                    self.sendMsg(user.getSocket(), msg)
-                
+            self.sendMsgToTargets(targets, msg)
+
     def receivedNames(self, socket, names):
         pass # server should not received messages
 

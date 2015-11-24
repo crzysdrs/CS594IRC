@@ -30,6 +30,12 @@ informative:
   RFC1459:
   RFC4627:
 
+<!--
+NEED TO UPDATE COMMANDS JOIN, LEAVE, NICK
+They now respond with their commands to the client to notify success.
+Rather than reply_ok
+
+-->
 --- abstract
 
 A proposed re-implementation of a small subset of an IRC server
@@ -471,7 +477,7 @@ In the case of an error, no action will be taken by the server and
 the command will be discarded.
 
 ~~~
-{"error":"Error Name", "msg":"Descriptive Message"}\r\n
+{"error":"Error Name", "msg":"Descriptive Message"}\rn\
 ~~~
 {: #errdefault title="Generic Error"}
 
