@@ -196,7 +196,7 @@ class IRCServer(IRC.Handler.IRCHandler):
         
         if not all(map(lambda c: c != None, match_channels)):
             self.sendMsg(socket, self._ircmsg.errorMsg("nochannel", "One or more channels does not exist"))
-        elif not all(map(lambda c: c.userInChannel(user)), match_channels):
+        elif not all(map(lambda c: c.userInChannel(user), match_channels)):
             self.sendMsg(socket, self._ircmsg.errorMsg("nonmember", "Not a member in one or more channels"))
         else:
             for c in match_channels:
