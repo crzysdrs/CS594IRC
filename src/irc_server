@@ -143,10 +143,13 @@ class IRCServer(IRC.Handler.IRCHandler):
     def connectionDrop(self, socket):
         self.endUser(self.findUserBySocket(socket))
 
-    def getSocketList(self):
+    def getInputSocketList(self):
         inputs = [self.__server]
         inputs.extend(self.__user_sockets.keys())
         return inputs
+
+    def getOutputSocketList(self):
+        return self.__user_sockets.keys()
     
     def socketInputReady(self, socket):
         if socket == self.__server:

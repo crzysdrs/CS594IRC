@@ -7,6 +7,50 @@ import Exceptions
 import Schema
 import IRC
 import json
+import re
+
+MAX_JSON_MSG = 1024
+#RWSIZE = self.PIPE_BUF
+RWSIZE = 10
+
+class SocketBuffer():
+    def __init__(self, socket):
+        self.__sendBuffer = ""
+        self.__recvBuffer = ""
+        self.__socket = socket
+        self.__disconnect = False
+
+    def send(self, msg):
+        self.__sendBuffer += msg
+        (payload, self.__sendBuffer) = (self.__sendBuffer[:RWSIZE], self.__sendBuffer[RWSIZE:])
+        if len(payload):
+            self.__socket.send(payload)
+
+    def __findMsg(self):
+        match = re.match("^.*?([^\r\n]{1,1022})\r?\n(.*)$", self.__recvBuffer, flags=re.MULTILINE)
+        if match:
+            self.__recvBuffer = match.group(2)
+            return match.group(1)
+        else:
+            self.__recvBuffer = self.__recvBuffer[-MAX_JSON_MSG:]
+            if self.__disconnect:
+                return ''
+            else:
+                return None
+
+    def recv(self):
+        if self.__disconnect:
+            return self.__findMsg()
+        else:
+            recvd = self.__socket.recv(RWSIZE)
+            if recvd == '':
+                self.__disconnect = True
+            else:
+                self.__recvBuffer += recvd
+            return self.__findMsg()
+
+    def getSocket(self):
+        return self.__socket
 
 class IRCHandler():
     __metaclass__ = ABCMeta
@@ -14,6 +58,7 @@ class IRCHandler():
         self._ircmsg = IRCMessage(src)
         self.__running = True
         self.__timeout = 0.1
+        self.__socketBuffers = {}
         self.__handlers = {
             'cmd':{
                 'nick'     : lambda s, msg: self.receivedNick(s, msg['src'], msg['update']),
@@ -25,7 +70,7 @@ class IRCHandler():
                 'users'    : lambda s, msg: self.receivedUsers(s),
                 'ping'     : lambda s, msg: self.receivedPing(s, msg['msg']),
                 'pong'     : lambda s, msg: self.receivedPong(s, msg['msg']),
-                'msg'      : lambda s, msg: self.receivedMsg(s, msg['src'], msg['targets'], msg['msg']),            
+                'msg'      : lambda s, msg: self.receivedMsg(s, msg['src'], msg['targets'], msg['msg']),
             },
             'reply':{
                 'ok'   : lambda s, msg: self.receivedOk(s),
@@ -36,31 +81,48 @@ class IRCHandler():
             }
         }
         signal.signal(signal.SIGINT, self.receivedSignal)
-    
+
+    def prepareSocketBuffers(self, sockets):
+        for s in sockets:
+            self.__findSocketBuffer(s)
+
+    def __findSocketBuffer(self, s):
+        if not s in self.__socketBuffers:
+            self.__socketBuffers[s] = SocketBuffer(s)
+        return self.__socketBuffers[s]
+
     def run(self):
         try:
             while self.__running:
                 try:
-                    inputready, outputready, exceptready = select.select(self.getSocketList(),[],[],self.__timeout)
+                    inputready, outputready, exceptready = select.select(
+                        self.getInputSocketList(),
+                        self.getOutputSocketList(),
+                        [],
+                        self.__timeout
+                    )
                     for s in inputready:
-                        self.socketInputReady(s)                    
+                        self.socketInputReady(s)
+                    for s in outputready:
+                        #pump the sending buffer (if it has anything in it)
+                        self.__findSocketBuffer(s).send("")
                     for s in exceptready:
                         self.socketExceptReady(s)
                 except Exceptions.InvalidIRCMessage as e:
                     self.sentInvalid(e.socket, e.msg)
         finally:
             self.shutdown()
-            
+
     def sendMsg(self, socket, msg):
         try:
             jsonschema.validate(msg, IRC.Schema.Defn)
             jmsg = json.dumps(msg, separators=(',', ':')) + "\r\n"
             if len(jmsg) > 1024:
-                raise Exceptions.InvalidIRCMessage(socket, "JSON IRC Message Too Long")            
-        except jsonschema.exceptions.ValidationError:            
+                raise Exceptions.InvalidIRCMessage(socket, "JSON IRC Message Too Long")
+        except jsonschema.exceptions.ValidationError:
             raise Exceptions.InvalidIRCMessage(socket, msg)
         else:
-            socket.send(jmsg)
+            self.__findSocketBuffer(socket).send(jmsg)
 
     def processIRCMsg(self, socket, msg):
         try:
@@ -68,13 +130,13 @@ class IRCHandler():
         except ValueError as e:
             self.receivedInvalid(socket, msg)
             return
-        
+
         try:
             jsonschema.validate(jmsg, IRC.Schema.Defn)
         except jsonschema.exceptions.ValidationError as e:
             self.receivedInvalid(socket, msg)
             return
-        
+
         if 'cmd' in jmsg:
             self.__handlers['cmd'][jmsg['cmd']](socket, jmsg)
         elif 'reply' in jmsg:
@@ -84,19 +146,27 @@ class IRCHandler():
         else:
             raise BaseException("Unhandled Message Type")
             self.receivedInvalid(socket, msg) #how did we get here?
-            
+
     def receiveMsg(self, socket):
-        msg = socket.recv(1024)
-        if msg == '':
+        msg = self.__findSocketBuffer(socket).recv()
+        print "Recieved msg '{m}'".format(m=msg)
+        if msg == None:
+            pass # This means we don't have a complete message in the buffer
+        elif msg == '':
             self.connectionDrop(socket)
+            del self.__socketBuffers[socket]
         else:
             self.processIRCMsg(socket, msg)
 
     def stop(self):
         self.__running = False
-        
+
     @abstractmethod
-    def getSocketList(self):
+    def getInputSocketList(self):
+        pass
+
+    @abstractmethod
+    def getOutputSocketList(self):
         pass
 
     @abstractmethod
@@ -106,7 +176,7 @@ class IRCHandler():
     @abstractmethod
     def socketExceptReady(self, socket):
         pass
-    
+
     @abstractmethod
     def connectionDrop(self, socket):
         pass
@@ -162,8 +232,8 @@ class IRCHandler():
     @abstractmethod
     def receivedError(self, socket, error_name, error_msg):
         pass
-        
-    @abstractmethod    
+
+    @abstractmethod
     def receivedInvalid(self, socket, msg):
         pass
 
@@ -178,4 +248,3 @@ class IRCHandler():
     @abstractmethod
     def shutdown(self):
         pass
-    
