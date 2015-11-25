@@ -21,13 +21,26 @@ class SocketBuffer():
         self.__disconnect = False
 
     def send(self, msg):
-        self.__sendBuffer += msg
-        (payload, self.__sendBuffer) = (self.__sendBuffer[:RWSIZE], self.__sendBuffer[RWSIZE:])
-        if len(payload):
-            self.__socket.send(payload)
+        if not self.__disconnect:
+            self.__sendBuffer += msg
+            (payload, self.__sendBuffer) = (self.__sendBuffer[:RWSIZE], self.__sendBuffer[RWSIZE:])
+            if len(payload):
+                self.__socket.send(payload)
+
+    def hasMsg(self):
+        if self.__disconnect:
+            return True
+        elif self.__getMsg():
+            return True
+        else:
+            return False
+
+    def __getMsg(self):
+        match = re.match("^.*?([^\r\n]{1,1022})\r?\n(.*)$", self.__recvBuffer, flags=re.MULTILINE)
+        return match
 
     def __findMsg(self):
-        match = re.match("^.*?([^\r\n]{1,1022})\r?\n(.*)$", self.__recvBuffer, flags=re.MULTILINE)
+        match = self.__getMsg()
         if match:
             self.__recvBuffer = match.group(2)
             return match.group(1)
@@ -57,7 +70,7 @@ class IRCHandler():
     def __init__(self, src):
         self._ircmsg = IRCMessage(src)
         self.__running = True
-        self.__timeout = 0.1
+        self.__timeout = 2
         self.__socketBuffers = {}
         self.__handlers = {
             'cmd':{
@@ -91,6 +104,9 @@ class IRCHandler():
             self.__socketBuffers[s] = SocketBuffer(s)
         return self.__socketBuffers[s]
 
+    def getIRCMsg(self):
+        return self._ircmsg
+
     def run(self):
         try:
             while self.__running:
@@ -110,6 +126,16 @@ class IRCHandler():
                         self.socketExceptReady(s)
                 except Exceptions.InvalidIRCMessage as e:
                     self.sentInvalid(e.socket, e.msg)
+
+                self.timeStep()
+        except select.error as e:
+            if e[0] == 4: #interrupted system call
+                pass
+            else:
+                raise e
+        #except KeyBoardInterrupt:
+        #    print "*** Received Keyboard Interrupt ***"
+        #    pass
         finally:
             self.shutdown()
 
@@ -151,15 +177,21 @@ class IRCHandler():
         msg = self.__findSocketBuffer(socket).recv()
         print "Recieved msg '{m}'".format(m=msg)
         if msg == None:
-            pass # This means we don't have a complete message in the buffer
+            return False # This means we don't have a complete message in the buffer
         elif msg == '':
             self.connectionDrop(socket)
             del self.__socketBuffers[socket]
+            return False
         else:
             self.processIRCMsg(socket, msg)
+            return True
 
     def stop(self):
         self.__running = False
+
+
+    def timeStep(self):
+        pass
 
     @abstractmethod
     def getInputSocketList(self):

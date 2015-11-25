@@ -236,9 +236,6 @@ class IRCClient(IRC.Handler.IRCHandler):
     def serverSocket(self):
         return self.__server
 
-    def getIRCMsg(self):
-        return self._ircmsg
-
     def socketInputReady(self, socket):
         if socket == sys.stdin:
             stdin = socket
@@ -307,6 +304,7 @@ class IRCClient(IRC.Handler.IRCHandler):
             print "{src}: {msg}".format(src=src, msg=msg)
 
     def receivedPing(self, socket, msg):
+        print "Received Ping, sending Pong"
         self.sendMsg(socket, self._ircmsg.cmdPong(msg))
 
     @clientIgnore
