@@ -9,7 +9,7 @@ setup(name='IRC594',
       author_email='msouders@pdx.edu',
       scripts=[
           'src/irc_server',
-          'src/irc_client',          
+          'src/irc_client',
       ],
       package_dir={'':'src'},
       py_modules=[
@@ -17,7 +17,7 @@ setup(name='IRC594',
       ],
       #url='',
       #packages=['distutils', 'distutils.command'],
-      setup_requires=[
+      install_requires=[
           'petname',
           'jsonschema',
           'more_itertools',
