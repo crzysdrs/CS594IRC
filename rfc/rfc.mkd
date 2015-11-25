@@ -30,13 +30,14 @@ informative:
   RFC1459:
   RFC4627:
 
+--- abstract
+
 <!--
 NEED TO UPDATE COMMANDS JOIN, LEAVE, NICK
 They now respond with their commands to the client to notify success.
 Rather than reply_ok
 
 -->
---- abstract
 
 A proposed re-implementation of a small subset of an IRC server
 functionality. This implementation will not be compatible with
