@@ -11,8 +11,8 @@ import re
 import socket
 
 MAX_JSON_MSG = 1024
-#RWSIZE = self.PIPE_BUF
-RWSIZE = 10
+RWSIZE = 512
+#RWSIZE = 10
 
 class SocketBuffer():
     def __init__(self, socket):
@@ -21,10 +21,14 @@ class SocketBuffer():
         self.__socket = socket
         self.__disconnect = False
         self.__broken = False
+        self.__closed = False
+
+    def __dead(self):
+        return self.__disconnect or self.__broken or self.__closed
 
     def send(self, msg):
         try:
-            if not self.__disconnect and not self.__broken:
+            if not self.__dead():
                 self.__sendBuffer += msg
                 (payload, self.__sendBuffer) = (self.__sendBuffer[:RWSIZE], self.__sendBuffer[RWSIZE:])
                 if len(payload):
@@ -32,13 +36,13 @@ class SocketBuffer():
         except socket.error as e:
             self.__broken = True
 
-    def hasMsg(self):
-        if self.__disconnect:
-            return True
-        elif self.__getMsg():
-            return True
-        else:
-            return False
+    def close(self):
+        if not self.__dead():
+            while len(self.__sendBuffer):
+                self.send("")
+            self.__socket.close()
+
+        self.__closed = True
 
     def __getMsg(self):
         match = re.match("^.*?([^\r\n]{1,1022})\r?\n(.*)$", self.__recvBuffer, flags=re.MULTILINE)
@@ -51,7 +55,7 @@ class SocketBuffer():
             return match.group(1)
         else:
             self.__recvBuffer = self.__recvBuffer[-MAX_JSON_MSG:]
-            if self.__disconnect:
+            if self.__dead():
                 return ''
             else:
                 return None
@@ -103,6 +107,10 @@ class IRCHandler():
             }
         }
         signal.signal(signal.SIGINT, self.receivedSignal)
+
+    def closeSocket(self, s):
+        sb = self.__findSocketBuffer(s)
+        sb.close()
 
     def prepareSocketBuffers(self, sockets):
         for s in sockets:
@@ -186,6 +194,7 @@ class IRCHandler():
 
     def receiveMsg(self, socket):
         msg = self.__findSocketBuffer(socket).recv()
+        print msg
         if msg == None:
             return False # This means we don't have a complete message in the buffer
         elif msg == '':
@@ -198,7 +207,6 @@ class IRCHandler():
 
     def stop(self):
         self.__running = False
-
 
     def timeStep(self):
         pass

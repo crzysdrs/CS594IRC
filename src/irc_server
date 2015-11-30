@@ -56,11 +56,13 @@ class IRCUser:
         logging.info("User changed name from {old} to {new}.".format(old=self.__name, new=name))
         self.__name = name
 
-    def leave(self):
+    def leave(self, handler):
         logging.info("User %s left", self)
+
         for c in self.__channels:
             c.removeUser(self)
-        self.__client.close()
+
+        handler.closeSocket(self.__client)
 
     def getSocket(self):
         return self.__client
@@ -136,7 +138,10 @@ class IRCServer(IRC.Handler.IRCHandler):
         self.__users.append(user)
 
     def endUser(self, user):
-        user.leave()
+        userIRC = IRC.Message.IRCMessage(user.getName())
+        self.sendMsg(user.getSocket(), userIRC.cmdQuit("Goodbye"))
+
+        user.leave(self)
         del self.__user_sockets[user.getSocket()]
         self.__users.remove(user)
 
@@ -236,7 +241,6 @@ class IRCServer(IRC.Handler.IRCHandler):
             )
 
     def receivedQuit(self, socket, src, msg):
-        self.sendMsg(socket, self._ircmsg.replyOk())
         self.endUser(self.findUserBySocket(socket))
 
     def receivedSQuit(self, socket, msg):
@@ -336,7 +340,6 @@ class IRCServer(IRC.Handler.IRCHandler):
     def shutdown(self):
         logging.info("Shutting down server.")
         self.__running = False
-        self.__server.shutdown(socket.SHUT_RDWR)
         self.__server.close()
         for u in self.__users:
             self.endUser(u)

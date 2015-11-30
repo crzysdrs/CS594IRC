@@ -24,7 +24,7 @@ nicks=["bot1", "bot2", "bot3", "bot4", "bot5"]
 msgs=["This is a test", "I am a bot", "Are you a bot?"]
 
 class IRCBot(IRCClient):
-    def __init__(self, hostname, port, cmds=100):
+    def __init__(self, hostname, port, cmds=10):
         self.__botinput = tempfile.TemporaryFile()
         self.__botinput.seek(0)
         self.__lasttime = 0
@@ -37,6 +37,7 @@ class IRCBot(IRCClient):
             pos = self.__botinput.tell()
             self.__botinput.seek(0, 2) #go to end of file
             if self.__commands == 0:
+                print "SENDING QUIT"
                 cmd = "/quit Bot Leaving (Command Limit Hit)"
             else:
                 self.__commands -= 1
