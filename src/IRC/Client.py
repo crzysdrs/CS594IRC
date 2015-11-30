@@ -163,7 +163,6 @@ class CommandProcessor:
     def __quitCmd(c, client, msg):
         irc_msg = client.getIRCMsg().cmdQuit(msg)
         client.sendMsg(client.serverSocket(), irc_msg)
-        client.stop()
 
     def __chanMsgCmd(c, client, msg):
         if client.currentChannel():
@@ -267,8 +266,7 @@ class IRCClient(IRC.Handler.IRCHandler):
 
     def receivedQuit(self, socket, src, msg):
         if src == self.__nick:
-            self.__channels.extend(channels)
-            self.channels = unique(self.__channels)
+            self.stop()
         else:
             print "*** {src} quit ({msg})".format(src=src, msg=msg)
 
