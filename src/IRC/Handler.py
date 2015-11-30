@@ -57,15 +57,19 @@ class SocketBuffer():
                 return None
 
     def recv(self):
-        if self.__disconnect:
+        if self.__disconnect or self.__broken:
             return self.__findMsg()
         else:
-            recvd = self.__socket.recv(RWSIZE)
-            if recvd == '':
+            try:
+                recvd = self.__socket.recv(RWSIZE)
+                if recvd == '':
+                    self.__disconnect = True
+                else:
+                    self.__recvBuffer += recvd
+                return self.__findMsg()
+            except socket.error as e:
+                self.__broken = True
                 self.__disconnect = True
-            else:
-                self.__recvBuffer += recvd
-            return self.__findMsg()
 
     def getSocket(self):
         return self.__socket
@@ -182,12 +186,11 @@ class IRCHandler():
 
     def receiveMsg(self, socket):
         msg = self.__findSocketBuffer(socket).recv()
-        print "Recieved msg '{m}'".format(m=msg)
         if msg == None:
             return False # This means we don't have a complete message in the buffer
         elif msg == '':
             self.connectionDrop(socket)
-            del self.__socketBuffers[socket]
+            #del self.__socketBuffers[socket]
             return False
         else:
             self.processIRCMsg(socket, msg)
