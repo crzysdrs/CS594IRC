@@ -231,7 +231,7 @@ class IRCServer(IRC.Handler.IRCHandler):
         else:
             self.sendMsg(socket,
                          self._ircmsg.errorMsg("badnick",
-                                               "{newnick} alreay in use.".format(newnick=newnick)
+                                               "{newnick} already in use.".format(newnick=newnick)
                          )
             )
 
@@ -271,10 +271,6 @@ class IRCServer(IRC.Handler.IRCHandler):
             for c in match_channels:
                 self.sendMsgToSockets(map(lambda u: u.getSocket(), c.getUsers()), userIRC.cmdLeave([c.getName()], msg))
                 c.removeUser(user)
-                for user in c.getUsers():
-                    self.sendMsg(user.socket(),
-                                 self.__ircmsg.cmdMsg("{user} left : {msg}".format(user=user.name(), msg=msg))
-                    )
 
     def receivedChannels(self, socket):
         for c in chunks(map(lambda x : x.getName(), self.__rooms), 5):

@@ -209,7 +209,7 @@ def clientIgnore(some_func):
     return inner
 
 class IRCClient(IRC.Handler.IRCHandler):
-    def __init__(self, hostname, port ):
+    def __init__(self, hostname, port, userinput=sys.stdin):
         self.__nick = "NEWUSER"
         super(IRCClient, self).__init__(self.__nick)
         self.__cmdProc = CommandProcessor()
@@ -217,6 +217,7 @@ class IRCClient(IRC.Handler.IRCHandler):
         self.__server.connect((hostname, port))
         self.__currentChannel = None
         self.__channels = []
+        self.__input = userinput
 
     def getChannels(self):
         return self.__channels
@@ -228,7 +229,7 @@ class IRCClient(IRC.Handler.IRCHandler):
         self.__currentChannel = chan
 
     def getInputSocketList(self):
-        return [sys.stdin, self.__server]
+        return [self.__input, self.__server]
 
     def getOutputSocketList(self):
         return [self.__server]
@@ -237,13 +238,13 @@ class IRCClient(IRC.Handler.IRCHandler):
         return self.__server
 
     def socketInputReady(self, socket):
-        if socket == sys.stdin:
-            stdin = socket
+        if socket == self.__input:
             try:
-                line = stdin.readline()
-                cmd = self.__cmdProc.processCmd(line)
-                if cmd:
-                    cmd.execute(self)
+                line = self.__input.readline()
+                if len(line) > 0:
+                    cmd = self.__cmdProc.processCmd(line)
+                    if cmd:
+                        cmd.execute(self)
             except CommandParseError as e:
                 print "Error Encountered Parsing Command: %s" % (e)
         else:
@@ -287,7 +288,7 @@ class IRCClient(IRC.Handler.IRCHandler):
             for c in channels:
                 self.channels.remove(c)
         else:
-            print "*** {src} joined the channel ({msg})".format(src=src, msg=msg)
+            print "*** {src} left the channel ({msg})".format(src=src, msg=msg)
 
     @clientIgnore
     def receivedChannels(self, socket):
@@ -333,10 +334,9 @@ class IRCClient(IRC.Handler.IRCHandler):
 
     def shutdown(self):
         print "*** Shutting Down Client ***"
-        self.__server.shutdown(socket.SHUT_RDWR)
         self.__server.close()
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="IRC Client")
     parser.add_argument('--hostname', help="Hostname", default="localhost")
     parser.add_argument('--port', type=int, help="Port", default=50000)
@@ -345,3 +345,6 @@ if __name__ == "__main__":
 
     client = IRCClient(args.hostname, args.port)
     client.run()
+
+if __name__ == "__main__":
+    main()

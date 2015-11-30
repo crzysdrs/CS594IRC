@@ -9,12 +9,17 @@ setup(name='IRC594',
       author_email='msouders@pdx.edu',
       scripts=[
           'src/irc_server',
-          'src/irc_client',
+          'src/irc_bot'
       ],
       package_dir={'':'src'},
       py_modules=[
           'IRC'
       ],
+      entry_points={
+          'console_scripts':[
+              'irc_client = IRC.Client:main'
+          ],
+      },
       #url='',
       #packages=['distutils', 'distutils.command'],
       install_requires=[

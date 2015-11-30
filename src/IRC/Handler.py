@@ -8,6 +8,7 @@ import Schema
 import IRC
 import json
 import re
+import socket
 
 MAX_JSON_MSG = 1024
 #RWSIZE = self.PIPE_BUF
@@ -19,13 +20,17 @@ class SocketBuffer():
         self.__recvBuffer = ""
         self.__socket = socket
         self.__disconnect = False
+        self.__broken = False
 
     def send(self, msg):
-        if not self.__disconnect:
-            self.__sendBuffer += msg
-            (payload, self.__sendBuffer) = (self.__sendBuffer[:RWSIZE], self.__sendBuffer[RWSIZE:])
-            if len(payload):
-                self.__socket.send(payload)
+        try:
+            if not self.__disconnect and not self.__broken:
+                self.__sendBuffer += msg
+                (payload, self.__sendBuffer) = (self.__sendBuffer[:RWSIZE], self.__sendBuffer[RWSIZE:])
+                if len(payload):
+                    self.__socket.send(payload)
+        except socket.error as e:
+            self.__broken = True
 
     def hasMsg(self):
         if self.__disconnect:
@@ -99,6 +104,9 @@ class IRCHandler():
         for s in sockets:
             self.__findSocketBuffer(s)
 
+    def __bufferExist(self, s):
+        return s in self.__socketBuffers
+
     def __findSocketBuffer(self, s):
         if not s in self.__socketBuffers:
             self.__socketBuffers[s] = SocketBuffer(s)
@@ -120,7 +128,6 @@ class IRCHandler():
                     for s in inputready:
                         self.socketInputReady(s)
                     for s in outputready:
-                        #pump the sending buffer (if it has anything in it)
                         self.__findSocketBuffer(s).send("")
                     for s in exceptready:
                         self.socketExceptReady(s)
