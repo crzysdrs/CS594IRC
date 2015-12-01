@@ -194,7 +194,6 @@ class IRCHandler():
 
     def receiveMsg(self, socket):
         msg = self.__findSocketBuffer(socket).recv()
-        print msg
         if msg == None:
             return False # This means we don't have a complete message in the buffer
         elif msg == '':

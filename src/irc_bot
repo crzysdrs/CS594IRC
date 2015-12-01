@@ -37,7 +37,6 @@ class IRCBot(IRCClient):
             pos = self.__botinput.tell()
             self.__botinput.seek(0, 2) #go to end of file
             if self.__commands == 0:
-                print "SENDING QUIT"
                 cmd = "/quit Bot Leaving (Command Limit Hit)"
             else:
                 self.__commands -= 1
