@@ -5,6 +5,7 @@ import io
 import tempfile
 import time
 import random
+import logging
 
 cmds = [
     "/join {channel}",
@@ -54,8 +55,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="IRC Client")
     parser.add_argument('--hostname', help="Hostname", default="localhost")
     parser.add_argument('--port', type=int, help="Port", default=50000)
+    parser.add_argument('--log', default=None)
 
     args = parser.parse_args()
+
+    if args.log != None:
+        logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
 
     client = IRCBot(args.hostname, args.port)
     client.run()

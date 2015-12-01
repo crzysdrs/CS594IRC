@@ -13,6 +13,7 @@ import curses
 from curses import textpad
 from collections import defaultdict
 import logging
+from IRC.Handler import SocketBuffer
 
 def unique(items):
     return list(unique_everseen(items))
@@ -234,16 +235,16 @@ class ClientGUI:
             self.__screen.addstr(height /2, width /2, "HELLO")
             self.__channelWin = curses.newwin(height - 1, 15, 0, 0)
             self.__channelWin.scrollok(True)
-            
+
             self.__userWin = curses.newwin(height - 1, 15, 0, width - 15)
             self.__userWin.scrollok(True)
-                        
+
             self.__chatWin = curses.newwin(height - 1,
                                         self.__userWin.getbegyx()[1] - self.__channelWin.getmaxyx()[1],
                                         0,
                                         self.__channelWin.getmaxyx()[1])
             self.__chatWin.scrollok(True)
-            
+
             self.__textWin = curses.newwin(1, width, height-1, 0)
             self.__textPad = textpad.Textbox(self.__textWin)
 
@@ -289,7 +290,7 @@ class ClientGUI:
 
             for c_k in self.__chats.keys():
                 self.__chats[c_k] = self.__chats[c_k][-self.__chatWin.getmaxyx()[0]:]
-                
+
             self.__redrawChat()
         else:
             print msg
@@ -342,12 +343,13 @@ class IRCClient(IRC.Handler.IRCHandler):
         self.__cmdProc = CommandProcessor()
         self.__server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.__server.connect((hostname, port))
+        self.__server = SocketBuffer(self.__server)
         self.__currentChannel = None
         self.__channels = defaultdict(list)
         self.__input = userinput
         self.__gui = ClientGUI(client=self, screen=screen)
         self.__tempNames = []
-        
+
     def getUserInput(self):
         return self.__input.readline()
 
@@ -365,7 +367,7 @@ class IRCClient(IRC.Handler.IRCHandler):
         return [self.__input, self.__server]
 
     def getOutputSocketList(self):
-        return [self.__server]
+        return filter(lambda s : s.readyToSend(), [self.__server])
 
     def serverSocket(self):
         return self.__server
@@ -393,13 +395,13 @@ class IRCClient(IRC.Handler.IRCHandler):
     def notify(self, msg):
         self.__gui.updateChat(msg)
 
-    def receivedNick(self, socket, src, newnick):    
+    def receivedNick(self, socket, src, newnick):
         notify_chans = []
         for (k, v) in self.__channels.iteritems():
             if src in v:
                 notify_chans.append(k)
             self.__channels[k] = map(lambda n : newnick if n == src else n, v)
-        
+
         if self.__nick == src:
             self.__nick = newnick
             self._ircmsg.updateSrc(newnick)
@@ -407,14 +409,14 @@ class IRCClient(IRC.Handler.IRCHandler):
         else:
             self.__gui.updateChat("*** {oldnick} is now {newnick} ****".format(oldnick=src, newnick=newnick), notify_chans)
         self.__gui.update()
-        
+
     def receivedQuit(self, socket, src, msg):
         notify_chans = []
         for (k, v) in self.__channels.iteritems():
             if src in v:
                 notify_chans.append(k)
                 v.remove(src)
-       
+
         if src == self.__nick:
             self.stop()
         else:
@@ -428,7 +430,7 @@ class IRCClient(IRC.Handler.IRCHandler):
         for c in channels:
             self.__channels[c].append(src)
             unique(self.__channels[c])
-        
+
         if src == self.__nick:
             self.notify("*** You joined the channel {channels}".format(channels=channels))
         else:
@@ -439,7 +441,7 @@ class IRCClient(IRC.Handler.IRCHandler):
         delchannels = []
         for (k, v) in self.__channels.iteritems():
             if k in channels:
-                if src == self.__nick:                    
+                if src == self.__nick:
                     if self.__currentChannel == k:
                         self.__currentChannel = None
                     delchannels.append(k)
@@ -447,8 +449,8 @@ class IRCClient(IRC.Handler.IRCHandler):
                     self.__channels[k] = filter(lambda n : n != src, v)
 
         for d in delchannels:
-            del self.__channels[d] 
-            
+            del self.__channels[d]
+
         if src != self.__nick:
             self.__gui.updateChat("*** {src} left the channel ({msg})".format(src=src, msg=msg), channels)
         self.__gui.update()
@@ -467,7 +469,7 @@ class IRCClient(IRC.Handler.IRCHandler):
             self.__gui.updateChat("{src}: {msg}".format(src=src, msg=msg), channels)
         elif self.__nick in targets:
             self.notify("*** {src}: {msg}".format(src=src, msg=msg))
-            
+
     def receivedPing(self, socket, msg):
         self.sendMsg(socket, self._ircmsg.cmdPong(msg))
 
@@ -512,7 +514,7 @@ def main():
     args = parser.parse_args()
 
     if args.log != None:
-        logging.basicConfig(filename=args.log, level=logging.DEBUG)
+        logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
 
     if args.gui:
         curses.wrapper(invokeclient, args.hostname, args.port)

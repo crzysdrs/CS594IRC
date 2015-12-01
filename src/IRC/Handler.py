@@ -14,40 +14,53 @@ import logging
 MAX_JSON_MSG = 1024
 RWSIZE = 512 # select.BUF_SIZE
 
-class SocketBuffer():
-    def __init__(self, socket):
+class SocketBuffer(object):
+    def __init__(self, socket, misc=None):
         self.__sendBuffer = ""
         self.__recvBuffer = ""
         self.__socket = socket
         self.__disconnect = False
         self.__broken = False
         self.__closed = False
+        self.__misc = misc
+
+    def getMisc(self):
+        return self.__misc
+
+    def accept(self):
+        return self.__socket.accept()
 
     def __dead(self):
         return self.__disconnect or self.__broken or self.__closed
 
-    def send(self, msg):
+    def readyToSend(self):
+        return not self.__dead() and len(self.__sendBuffer) > 0
+
+    def send(self):
         try:
             if not self.__dead():
-                self.__sendBuffer += msg
                 (payload, self.__sendBuffer) = (self.__sendBuffer[:RWSIZE], self.__sendBuffer[RWSIZE:])
-                if len(payload):                    
+                if len(payload):
                     logging.debug("Sending Message: %s" % repr(payload))
                     self.__socket.send(payload)
         except socket.error as e:
             self.__broken = True
 
+    def addMessage(self, msg):
+        if not self.__dead():
+            self.__sendBuffer += msg
+
     def close(self):
         if not self.__dead():
             while len(self.__sendBuffer):
-                self.send("")
+                self.send()
             self.__socket.close()
 
         self.__closed = True
 
     def hasMsg(self):
         return self.__getMsg() != None or self.__dead()
-    
+
     def __getMsg(self):
         match = re.match("^([^\r\n]{1,1022})\r?\n(.*)$", self.__recvBuffer, flags=re.DOTALL)
         return match
@@ -56,14 +69,18 @@ class SocketBuffer():
         match = self.__getMsg()
         if match:
             self.__recvBuffer = match.group(2)
+            logging.debug("Passing up message: %s" % repr(match.group(1)))
             return match.group(1)
         else:
-            ditch = re.match("^[^\r\n]*?\r?\n(.*)$", self.__recvBuffer, flags=re.DOTALL)
-            if not ditch:
-                self.__recvBuffer = self.__recvBuffer[-MAX_JSON_MSG:]
-            else:
-                self.__recvBuffer = ditch.group(1)
-                
+            if len(self.__recvBuffer) > 0:
+                ditch = re.match("^[^\r\n]*?\r?\n(.*)$", self.__recvBuffer, flags=re.DOTALL)
+                if not ditch:
+                    logging.warning("Truncating buffer: %s" % repr(self.__recvBuffer))
+                    self.__recvBuffer = self.__recvBuffer[-MAX_JSON_MSG:]
+                else:
+                    logging.warning("Dropping partial: %s" % repr(self.__recvBuffer))
+                    self.__recvBuffer = ditch.group(1)
+
             if self.__dead():
                 return ''
             else:
@@ -71,7 +88,7 @@ class SocketBuffer():
 
     def recv(self):
         if self.__disconnect or self.__broken:
-            return 
+            return
         else:
             try:
                 recvd = self.__socket.recv(RWSIZE)
@@ -83,7 +100,7 @@ class SocketBuffer():
             except socket.error as e:
                 self.__broken = True
                 self.__disconnect = True
-    
+
     def getSocket(self):
         return self.__socket
 
@@ -117,41 +134,35 @@ class IRCHandler():
         }
         signal.signal(signal.SIGINT, self.receivedSignal)
 
-    def closeSocket(self, s):
-        sb = self.__findSocketBuffer(s)
-        sb.close()
-
-    def prepareSocketBuffers(self, sockets):
-        for s in sockets:
-            self.__findSocketBuffer(s)
-
-    def __bufferExist(self, s):
-        return s in self.__socketBuffers
-
-    def __findSocketBuffer(self, s):
-        if not s in self.__socketBuffers:
-            self.__socketBuffers[s] = SocketBuffer(s)
-        return self.__socketBuffers[s]
-
     def getIRCMsg(self):
         return self._ircmsg
 
     def run(self):
+        def maybeSocket(s):
+            if type(s) is SocketBuffer:
+                return s.getSocket()
+            else:
+                return s
+
         try:
             while self.__running:
                 try:
+                    inputs = self.getInputSocketList()
+                    outputs = self.getOutputSocketList()
+                    sockets = {maybeSocket(k) : k for k in inputs + outputs}
+                    logging.debug("Running Select %d %d Timeout %f" % (len(inputs), len(outputs), self.__timeout))
                     inputready, outputready, exceptready = select.select(
-                        self.getInputSocketList(),
-                        self.getOutputSocketList(),
+                        map(lambda x: maybeSocket(x), inputs),
+                        map(lambda x: maybeSocket(x), outputs),
                         [],
                         self.__timeout
                     )
                     for s in inputready:
-                        self.socketInputReady(s)
+                        self.socketInputReady(sockets[s])
                     for s in outputready:
-                        self.__findSocketBuffer(s).send("")
+                        sockets[s].send()
                     for s in exceptready:
-                        self.socketExceptReady(s)
+                        self.socketExceptReady(sockets[s])
                 except Exceptions.InvalidIRCMessage as e:
                     self.sentInvalid(e.socket, e.msg)
 
@@ -176,7 +187,7 @@ class IRCHandler():
         except jsonschema.exceptions.ValidationError:
             raise Exceptions.InvalidIRCMessage(socket, msg)
         else:
-            self.__findSocketBuffer(socket).send(jmsg)
+            socket.addMessage(jmsg)
 
     def processIRCMsg(self, socket, msg):
         try:
@@ -202,22 +213,20 @@ class IRCHandler():
             self.receivedInvalid(socket, msg) #how did we get here?
 
     def receiveMsg(self, socket):
-        sb = self.__findSocketBuffer(socket)      
-        sb.recv()
+        socket.recv()
         processed = False
-        while sb.hasMsg():
-            msg = sb.getMsg()
+        while socket.hasMsg():
+            msg = socket.getMsg()
             if msg == None:
                 return # This means we don't have a complete message in the buffer
             elif msg == '':
                 self.connectionDrop(socket)
-                del self.__socketBuffers[socket]
                 return
             else:
                 self.processIRCMsg(socket, msg)
                 processed = True
         return processed
-    
+
     def stop(self):
         self.__running = False
 
