@@ -12,6 +12,7 @@ import tty
 import curses
 from curses import textpad
 from collections import defaultdict
+import logging
 
 def unique(items):
     return list(unique_everseen(items))
@@ -232,12 +233,17 @@ class ClientGUI:
             (height, width) = self.__screen.getmaxyx()
             self.__screen.addstr(height /2, width /2, "HELLO")
             self.__channelWin = curses.newwin(height - 1, 15, 0, 0)
-
+            self.__channelWin.scrollok(True)
+            
             self.__userWin = curses.newwin(height - 1, 15, 0, width - 15)
+            self.__userWin.scrollok(True)
+                        
             self.__chatWin = curses.newwin(height - 1,
                                         self.__userWin.getbegyx()[1] - self.__channelWin.getmaxyx()[1],
                                         0,
                                         self.__channelWin.getmaxyx()[1])
+            self.__chatWin.scrollok(True)
+            
             self.__textWin = curses.newwin(1, width, height-1, 0)
             self.__textPad = textpad.Textbox(self.__textWin)
 
@@ -280,6 +286,10 @@ class ClientGUI:
             else:
                 for c in channels:
                     self.__chats[c].append(msg)
+
+            for c_k in self.__chats.keys():
+                self.__chats[c_k] = self.__chats[c_k][-self.__chatWin.getmaxyx()[0]:]
+                
             self.__redrawChat()
         else:
             print msg
@@ -287,7 +297,7 @@ class ClientGUI:
     @GUI
     def __redrawUsers(self):
         self.__userWin.clear()
-        all_users = self.__client.getChannelUsers()
+        all_users = self.__client.getChannels()[self.__client.currentChannel()]
         for i in range(0, min(len(all_users), self.__userWin.getmaxyx()[0])):
             self.__userWin.addstr(all_users[i] + "\n")
 
@@ -299,9 +309,10 @@ class ClientGUI:
     @GUI
     def __redrawChannels(self):
         self.__channelWin.clear()
-        all_chans = self.__client.getChannels()
+        all_chans = self.__client.getChannels().keys()
         for i in range(0, min(len(all_chans), self.__channelWin.getmaxyx()[0])):
-            self.__channelWin.addstr(all_chans[i] + "\n")
+            if all_chans[i]:
+                self.__channelWin.addstr(all_chans[i] + "\n")
 
     @GUI
     def updateChannels(self):
@@ -332,13 +343,11 @@ class IRCClient(IRC.Handler.IRCHandler):
         self.__server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.__server.connect((hostname, port))
         self.__currentChannel = None
-        self.__channels = []
+        self.__channels = defaultdict(list)
         self.__input = userinput
         self.__gui = ClientGUI(client=self, screen=screen)
-
-    def getChannelUsers(self):
-        return ["user1", "user2", "user3"]
-
+        self.__tempNames = []
+        
     def getUserInput(self):
         return self.__input.readline()
 
@@ -384,42 +393,65 @@ class IRCClient(IRC.Handler.IRCHandler):
     def notify(self, msg):
         self.__gui.updateChat(msg)
 
-    def receivedNick(self, socket, src, newnick):
+    def receivedNick(self, socket, src, newnick):    
+        notify_chans = []
+        for (k, v) in self.__channels.iteritems():
+            if src in v:
+                notify_chans.append(k)
+            self.__channels[k] = map(lambda n : newnick if n == src else n, v)
+        
         if self.__nick == src:
             self.__nick = newnick
             self._ircmsg.updateSrc(newnick)
             self.__gui.updateChat("*** You ({oldnick}) are now {newnick} ****".format(oldnick=src, newnick=newnick), self.__channels)
         else:
-            self.__gui.updateChat("*** {oldnick} is now {newnick} ****".format(oldnick=src, newnick=newnick), self.__channels)
-
+            self.__gui.updateChat("*** {oldnick} is now {newnick} ****".format(oldnick=src, newnick=newnick), notify_chans)
+        self.__gui.update()
+        
     def receivedQuit(self, socket, src, msg):
+        notify_chans = []
+        for (k, v) in self.__channels.iteritems():
+            if src in v:
+                notify_chans.append(k)
+                v.remove(src)
+       
         if src == self.__nick:
             self.stop()
         else:
-            self.__gui.updateChat("*** {src} quit ({msg})".format(src=src, msg=msg), self.__channels)
+            self.__gui.updateChat("*** {src} quit ({msg})".format(src=src, msg=msg), notify_chans)
+            self.__gui.updateUsers()
 
     def receivedSQuit(self, socket, msg):
         pass
 
     def receivedJoin(self, socket, src, channels):
+        for c in channels:
+            self.__channels[c].append(src)
+            unique(self.__channels[c])
+        
         if src == self.__nick:
-            self.__channels.extend(channels)
-            self.__channels = unique(self.__channels)
             self.notify("*** You joined the channel {channels}".format(channels=channels))
-            self.__gui.updateChannels()
         else:
             self.__gui.updateChat("*** {src} joined the channel".format(src=src), channels)
+        self.__gui.update()
 
     def receivedLeave(self, socket, src, channels, msg):
-        if src == self.__nick:
-            for c in channels:
-                self.__channels.remove(c)
-                if self.__currentChannel == c:
-                    self.__currentChannel = None
+        delchannels = []
+        for (k, v) in self.__channels.iteritems():
+            if k in channels:
+                if src == self.__nick:                    
+                    if self.__currentChannel == k:
+                        self.__currentChannel = None
+                    delchannels.append(k)
+                else:
+                    self.__channels[k] = filter(lambda n : n != src, v)
 
-            self.__gui.updateChannels()
-        else:
+        for d in delchannels:
+            del self.__channels[d] 
+            
+        if src != self.__nick:
             self.__gui.updateChat("*** {src} left the channel ({msg})".format(src=src, msg=msg), channels)
+        self.__gui.update()
 
     @clientIgnore
     def receivedChannels(self, socket):
@@ -431,11 +463,11 @@ class IRCClient(IRC.Handler.IRCHandler):
 
     def receivedMsg(self, socket, src, targets, msg):
         channels = filter(lambda c : c in self.__channels, targets)
-        if self.__nick in targets:
-            self.notify("*** {src}: {msg}".format(src=src, msg=msg))
-        elif len(channels) > 0:
+        if len(channels) > 0:
             self.__gui.updateChat("{src}: {msg}".format(src=src, msg=msg), channels)
-
+        elif self.__nick in targets:
+            self.notify("*** {src}: {msg}".format(src=src, msg=msg))
+            
     def receivedPing(self, socket, msg):
         self.sendMsg(socket, self._ircmsg.cmdPong(msg))
 
@@ -446,9 +478,12 @@ class IRCClient(IRC.Handler.IRCHandler):
     def receivedOk(self, socket):
         pass
 
-    def receivedNames(self, socket, names):
-        if len(names) > 0:
-            self.notify("SERVER : {names} ".format(names=" ".join(names)))
+    def receivedNames(self, socket, channel, names):
+        self.__tempNames.extend(names)
+        self.notify("Received Names %s" % ','.join(names))
+        if len(names) == 0:
+            self.__channels[channel] = self.__tempNames
+            self.__tempNames = []
 
     def receivedError(self, socket, error_name, error_msg):
         self.notify("ERROR: {error_t}: {error_m}".format(error_t=error_name, error_m=error_msg))
@@ -472,8 +507,13 @@ def main():
     parser.add_argument('--hostname', help="Hostname", default="localhost")
     parser.add_argument('--port', type=int, help="Port", default=50000)
     parser.add_argument('--gui', action='store_true')
+    parser.add_argument('--log', default=None)
 
     args = parser.parse_args()
+
+    if args.log != None:
+        logging.basicConfig(filename=args.log, level=logging.DEBUG)
+
     if args.gui:
         curses.wrapper(invokeclient, args.hostname, args.port)
     else:

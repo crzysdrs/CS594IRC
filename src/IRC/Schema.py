@@ -202,6 +202,7 @@ Defn = {
             'type': 'object',
             'properties': {
                 'reply' : {'enum': ['names']},
+                'channel' : {'type' : 'string', 'oneOf':[{'$ref' : '#/target/channel'}]},
                 'names': {
                     'type' : 'array',
                     'items' : {

@@ -26,7 +26,7 @@ class IRCUser:
 
     def sendPing(self, server, ping):
        self.__ping = ping
-       logging.info("Sending Ping {ping}".format(ping=ping))
+       #logging.info("Sending Ping {ping}".format(ping=ping))
        server.sendMsg(self.__client, server.getIRCMsg().cmdPing(ping))
 
     def receivedPong(self, pong):
@@ -137,20 +137,23 @@ class IRCServer(IRC.Handler.IRCHandler):
         self.__user_sockets[client] = user
         self.__users.append(user)
 
-    def endUser(self, user):
+    def endUser(self, user, msg):
         userIRC = IRC.Message.IRCMessage(user.getName())
-        self.sendMsg(user.getSocket(), userIRC.cmdQuit("Goodbye"))
+        if user in self.__users:
+            self.sendMsg(user.getSocket(), userIRC.cmdQuit("Goodbye"))
 
-        user.leave(self)
-        del self.__user_sockets[user.getSocket()]
-        self.__users.remove(user)
+            for c in user.getChannels():
+                self.sendMsgToSockets(map(lambda u: u.getSocket(), c.getUsers()), userIRC.cmdQuit(msg))
+
+            user.leave(self)
+            self.__users.remove(user)
 
     def timeStep(self):
         if time.time() - self.__last_ping > 2:
-            logging.info("Verifying Pongs/Sending Pings")
+            #logging.info("Verifying Pongs/Sending Pings")
             for client in self.__user_sockets.values():
                 if client.unansweredPing():
-                      self.endUser(client)
+                      self.endUser(client, 'High Ping')
                 else:
                       client.sendPing(self, str(time.time()))
 
@@ -177,8 +180,11 @@ class IRCServer(IRC.Handler.IRCHandler):
         return all(map(lambda n : n != name, map(lambda x: x.getName(), self.__users) + SPECIALNAMES))
 
     def connectionDrop(self, socket):
-        self.endUser(self.findUserBySocket(socket))
-
+        user = self.findUserBySocket(socket)
+        logging.info("{user} disconnected.".format(user=user.getName()))
+        self.endUser(user, 'Connection Drop')
+        del self.__user_sockets[user.getSocket()]
+            
     def getInputSocketList(self):
         inputs = [self.__server]
         inputs.extend(self.__user_sockets.keys())
@@ -233,6 +239,8 @@ class IRCServer(IRC.Handler.IRCHandler):
             userIRC = IRC.Message.IRCMessage(user.getName())
             user.changeName(newnick)
             self.sendMsg(socket, userIRC.cmdNick(newnick))
+            for c in user.getChannels():
+                self.sendMsgToSockets(map(lambda u: u.getSocket(), c.getUsers()), userIRC.cmdNick(newnick))
         else:
             self.sendMsg(socket,
                          self._ircmsg.errorMsg("badnick",
@@ -241,8 +249,8 @@ class IRCServer(IRC.Handler.IRCHandler):
             )
 
     def receivedQuit(self, socket, src, msg):
-        self.endUser(self.findUserBySocket(socket))
-
+        self.endUser(self.findUserBySocket(socket), msg)
+            
     def receivedSQuit(self, socket, msg):
         pass # server should not receive SQUIT messages
 
@@ -259,8 +267,8 @@ class IRCServer(IRC.Handler.IRCHandler):
                 c.addUser(user)
                 self.sendMsgToSockets(map(lambda u: u.getSocket(), c.getUsers()), userIRC.cmdJoin([c.getName()]))
                 for chunk in chunks(c.getUsers(), 5):
-                    self.sendMsg(socket, self._ircmsg.replyNames(map(lambda u : u.getName(), chunk)))
-                self.sendMsg(socket, self._ircmsg.replyNames([]))
+                    self.sendMsg(socket, self._ircmsg.replyNames(c.getName(), map(lambda u : u.getName(), chunk)))
+                self.sendMsg(socket,self._ircmsg.replyNames(c.getName(), []))
 
     def receivedLeave(self, socket, src, channels, msg):
         user = self.findUserBySocket(socket)
@@ -278,22 +286,27 @@ class IRCServer(IRC.Handler.IRCHandler):
 
     def receivedChannels(self, socket):
         for c in chunks(map(lambda x : x.getName(), self.__rooms), 5):
-            self.sendMsg(socket, self._ircmsg.replyNames(c))
-        self.sendMsg(socket, self._ircmsg.replyNames([]))
+            self.sendMsg(socket, self._ircmsg.replyNames('#fake', c))
+        self.sendMsg(socket, self._ircmsg.replyNames('#fake', []))
 
-    def receivedUsers(self, socket):
-        for u in chunks(map(lambda x : x.getName(), self.__users), 5):
-            self.sendMsg(socket, self._ircmsg.replyNames(u))
-        self.sendMsg(socket, self._ircmsg.replyNames([]))
+    def receivedUsers(self, socket, channels):
+        for c in channels:
+            chan = self.findChannelByName(c)
+            if chan:
+                for u in chunks(map(lambda x : x.getName(), chan.getUsers()), 5):
+                    self.sendMsg(socket, self._ircmsg.replyNames(c, u))
+                self.sendMsg(socket, self._ircmsg.replyNames(c, []))
+            else:
+                self.sendMsg(socket, self._ircmsg.errorMsg("nochannel", "One or more channels does not exist"))
 
     def receivedPing(self, socket, msg):
         pass #should not receive pings from users
 
     def receivedPong(self, socket, msg):
-        logging.info("Receveid Pong")
+        #logging.info("Receveid Pong")
         user = self.findUserBySocket(socket)
         if not user.receivedPong(msg):
-            self.endUser(user)
+            self.endUser(user, 'Unexpected Pong')
 
     def receivedInvalid(self, socket, msg):
         try:
@@ -342,7 +355,7 @@ class IRCServer(IRC.Handler.IRCHandler):
         self.__running = False
         self.__server.close()
         for u in self.__users:
-            self.endUser(u)
+            self.endUser(u, 'Server Shutdown')
         logging.info("Server shut down.")
 
 if __name__ == "__main__":

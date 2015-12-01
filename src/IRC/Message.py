@@ -43,5 +43,5 @@ class IRCMessage:
     def replyOk(self):
         return {'reply':'ok'}
 
-    def replyNames(self, names):
-        return {'reply':'names', 'names':names}
+    def replyNames(self, channel, names):
+        return {'reply':'names', 'channel':channel, 'names':names}
