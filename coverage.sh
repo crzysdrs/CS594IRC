@@ -1,5 +1,6 @@
 #!/bin/bash
 
+mkdir -p log
 echo "######### COVERAGE: Run in an expected behavior mode"
 coverage run --parallel-mode --source=src src/irc_server --log log/1.server.log &
 SERVER=$!
