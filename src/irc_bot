@@ -28,7 +28,8 @@ CMDS = [
 ]
 
 CHANNELS = ["#test", "#bots", "#ignore"]
-NICKS = ["bot1", "bot2", "bot3", "bot4", "bot5"]
+SENDNICKS = ["mathbot", "bot1", "bot2", "bot3", "bot4", "bot5"]
+SETNICKS = ["bot1", "bot2", "bot3", "bot4", "bot5"]
 MSGS = ["This is a test", "I am a bot", "Are you a bot?"]
 
 
@@ -71,9 +72,9 @@ class IRCBot(IRCClient):
                 cmd = random.choice(CMDS).format(
                     channel=random.choice(CHANNELS),
                     channel2=random.choice(CHANNELS),
-                    user=random.choice(NICKS),
+                    user=random.choice(SENDNICKS),
                     message=random.choice(MSGS),
-                    newnick=random.choice(NICKS)
+                    newnick=random.choice(SETNICKS)
                 )
             self.inputCmd(cmd)
             self.__lasttime = time.time()

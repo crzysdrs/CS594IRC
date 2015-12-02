@@ -12,7 +12,7 @@ setup(
     author='Mitch Souders',
     author_email='msouders@pdx.edu',
     scripts=[
-        'src/irc_server', 'src/irc_bot'
+        'src/irc_server', 'src/irc_bot', 'src/math_bot'
     ],
     package_dir={'': 'src'},
     py_modules=[
@@ -29,5 +29,6 @@ setup(
         'petname',
         'jsonschema',
         'more_itertools',
+        'mathjspy',
     ]
 )

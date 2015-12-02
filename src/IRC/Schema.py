@@ -127,7 +127,9 @@ DEFN = {
                     'minItems': 1,
                     'uniqueItems': True
                 },
-            }
+                'client':{'type':'boolean'}
+            },
+            'required':['channels', 'client']
         },
         'msg': {
             'type': 'object',
@@ -209,8 +211,11 @@ DEFN = {
                     'minItems': 0,
                     'uniqueItems': True
                 },
+                'client':{
+                    'type':'boolean',
+                }
             },
-            'required': ['reply', 'names']
+            'required': ['reply', 'names', 'client']
         },
         'channels': {
             'type': 'object',

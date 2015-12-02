@@ -184,7 +184,7 @@ class IRCHandler(object):
             'channels':
             lambda s, msg: self.receivedChannels(s),
             'users':
-            lambda s, msg: self.receivedUsers(s, msg['channels']),
+            lambda s, msg: self.receivedUsers(s, msg['channels'], msg['client']),
             'ping':
             lambda s, msg: self.receivedPing(s, msg['msg']),
             'pong':
@@ -196,7 +196,7 @@ class IRCHandler(object):
             'channels':
             lambda s, msg: self.receivedChannelsReply(s, msg['channels']),
             'names':
-            lambda s, msg: self.receivedNames(s, msg['channel'], msg['names']),
+            lambda s, msg: self.receivedNames(s, msg['channel'], msg['names'], msg['client']),
         } # yapf: disable
         errors = {
             'error':
@@ -401,7 +401,7 @@ class IRCHandler(object):
         pass
 
     @abstractmethod
-    def receivedUsers(self, socket, channels):
+    def receivedUsers(self, socket, channels, client_req):
         """ Notify received Users """
         pass
 
@@ -421,7 +421,7 @@ class IRCHandler(object):
         pass
 
     @abstractmethod
-    def receivedNames(self, socket, channel, names):
+    def receivedNames(self, socket, channel, names, client):
         """ Notify received Names"""
         pass
 

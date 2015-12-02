@@ -9,6 +9,7 @@ SERVER=$!
 sleep 1
 coverage run --parallel-mode --source=src src/irc_server --log log/1.server_exists.log &
 sleep 5
+coverage run --parallel-mode --source=src src/math_bot --log log/1.mathbot.log &
 coverage run --parallel-mode --source=src src/irc_bot --log log/1.bot1.log &
 BOT1=$!
 sleep 2

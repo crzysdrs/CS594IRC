@@ -226,7 +226,7 @@ class CommandProcessor(object):
 
     def __usersCmd(self, client, channels):
         """ Notify server of request to get list of users in channels"""
-        irc_msg = client.getIRCMsg().cmdUsers(unique(channels.split(',')))
+        irc_msg = client.getIRCMsg().cmdUsers(unique(channels.split(',')), True)
         client.sendMsg(client.serverSocket(), irc_msg)
 
     def __nickCmd(self, client, nick):
@@ -263,6 +263,7 @@ class CommandProcessor(object):
 
     def __msgCmd(self, client, nicks, msg):
         """ Notify server of message to send privately """
+        client.notify("*** {nick}: {msg}".format(nick=client.getNick(), msg=msg))
         client.sendMsg(
             client.serverSocket(), client.getIRCMsg().cmdMsg(
                 msg, unique(nicks.split(','))
@@ -347,6 +348,10 @@ class IRCClient(IRC.Handler.IRCHandler):
                 return False
             else:
                 raise e
+
+    def getNick(self):
+        """ Get's the client nickname"""
+        return self.__nick
 
     def getJoined(self):
         """ Return list of joined rooms """
@@ -574,7 +579,7 @@ class IRCClient(IRC.Handler.IRCHandler):
         pass
 
     @clientIgnore
-    def receivedUsers(self, socket, channels):
+    def receivedUsers(self, socket, channels, client_req):
         """ Client does not receive users requests"""
         pass
 
@@ -595,13 +600,13 @@ class IRCClient(IRC.Handler.IRCHandler):
         """ Client does not recieve pongs"""
         pass
 
-    def receivedNames(self, socket, channel, names):
+    def receivedNames(self, socket, channel, names, client):
         """ Receive the names list
 
         If the user is in GUI mode, update the users window.
         Otherwise print out the user information
         """
-        if self.__gui.isGUI():
+        if self.__gui.isGUI() and not client:
             self.__tempNames.extend(names)
             if len(names) == 0:
                 self.__channels[channel] = self.__tempNames

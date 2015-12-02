@@ -439,10 +439,11 @@ class IRCServer(IRC.Handler.IRCHandler):
                 for chunk in chunks(c.getUsers(), 5):
                     self.sendMsg(
                         socket, self._ircmsg.replyNames(
-                            c.getName(), map(lambda u: u.getName(), chunk)
+                            c.getName(), map(lambda u: u.getName(), chunk),
+                            False
                         )
                     )
-                self.sendMsg(socket, self._ircmsg.replyNames(c.getName(), []))
+                self.sendMsg(socket, self._ircmsg.replyNames(c.getName(), [], False))
 
     def receivedLeave(self, socket, src, channels, msg):
         """ Handle Leave Command
@@ -483,20 +484,20 @@ class IRCServer(IRC.Handler.IRCHandler):
             self.sendMsg(socket, self._ircmsg.replyChannels(c))
         self.sendMsg(socket, self._ircmsg.replyChannels([]))
 
-    def receivedUsers(self, socket, channels):
+    def receivedUsers(self, socket, channels, client_req):
         """ Reply with list of users from specified channel"""
-        for c in channels:
-            chan = self.findChannelByName(c)
-            if chan:
-                for u in chunks(map(lambda x: x.getName(), chan.getUsers()), 5):
-                    self.sendMsg(socket, self._ircmsg.replyNames(c, u))
-                self.sendMsg(socket, self._ircmsg.replyNames(c, []))
-            else:
-                self.sendMsg(
-                    socket, self._ircmsg.errorMsg(
-                        "nochannel", "One or more channels does not exist"
-                    )
+        if not self.validTargets(channels):
+            self.sendMsg(
+                socket, self._ircmsg.errorMsg(
+                    "nochannel", "One or more channels does not exist"
                 )
+            )
+        else:
+            for c in channels:
+                chan = self.findChannelByName(c)
+                for u in chunks(map(lambda x: x.getName(), chan.getUsers()), 5):
+                    self.sendMsg(socket, self._ircmsg.replyNames(c, u, client_req))
+                self.sendMsg(socket, self._ircmsg.replyNames(c, [], client_req))
 
     def receivedPing(self, socket, msg):
         """ Server does not respond to pings"""
@@ -560,7 +561,7 @@ class IRCServer(IRC.Handler.IRCHandler):
         else:
             self.sendMsgToTargets(targets, msg)
 
-    def receivedNames(self, socket, channel, names):
+    def receivedNames(self, socket, channel, names, client):
         """ Server will not receive name requests """
         pass  # server should not received messages
 

@@ -36,9 +36,9 @@ class IRCMessage(object):
         """ Send a Channels command"""
         return {'cmd': 'channels', 'src': self.__src}
 
-    def cmdUsers(self, channels):
+    def cmdUsers(self, channels, client):
         """ Send a Users command"""
-        return {'cmd': 'users', 'src': self.__src, 'channels': channels}
+        return {'cmd': 'users', 'src': self.__src, 'channels': channels, 'client':client}
 
     def cmdMsg(self, msg, targets):
         """ Send a Message command"""
@@ -60,6 +60,6 @@ class IRCMessage(object):
         """ Send a channels reply"""
         return {'reply': 'channels', 'channels': channels}
 
-    def replyNames(self, channel, names):
+    def replyNames(self, channel, names, client):
         """ Send a names reply"""
-        return {'reply': 'names', 'channel': channel, 'names': names}
+        return {'reply': 'names', 'channel': channel, 'names': names, 'client':client}
