@@ -231,6 +231,11 @@ class IRCClient(IRC.Handler.IRCHandler):
         self.__input = userinput
         self.__gui = ClientConsole(self)
         self.__tempNames = []
+        self.__joined = []
+        self.__tempChannels = []
+
+    def getJoined(self):
+        return self.__joined
 
     def getChats(self):
         return self.__chats
@@ -345,6 +350,8 @@ class IRCClient(IRC.Handler.IRCHandler):
     def receivedJoin(self, socket, src, channels):
         for c in channels:
             self.__channels[c].append(src)
+            self.__joined.append(c)
+            unique(self.__joined)
             unique(self.__channels[c])
 
         if src == self.__nick:
@@ -365,7 +372,7 @@ class IRCClient(IRC.Handler.IRCHandler):
                     self.__channels[k] = filter(lambda n : n != src, v)
 
         for d in delchannels:
-            del self.__channels[d]
+            self.__joined.remove(d)
 
         if src != self.__nick:
             self.updateChat("*** {src} left the channel ({msg})".format(src=src, msg=msg), channels)
@@ -393,15 +400,33 @@ class IRCClient(IRC.Handler.IRCHandler):
     def receivedPong(self, socket, msg):
         pass
 
-    def receivedOk(self, socket):
-        pass
-
     def receivedNames(self, socket, channel, names):
-        self.__tempNames.extend(names)
-        if len(names) == 0:
-            self.__channels[channel] = self.__tempNames
-            self.__tempNames = []
-        self.__gui.update()
+        if self.__gui.isGUI():
+            self.__tempNames.extend(names)
+            if len(names) == 0:
+                self.__channels[channel] = self.__tempNames
+                self.__tempNames = []
+            self.__gui.update()
+        elif len(names) > 0:
+            self.notify("{chan}: {users}".format(chan=channel, users=" ".join(names)))
+
+    def receivedChannelsReply(self, socket, channels):
+        if self.__gui.isGUI():
+            self.__tempChannels.extend(channels)
+
+            if channels == []:
+                new_set = set(self.__tempChannels)
+                old_set = set(self.__channels.keys())
+                remove = old_set - new_set
+                add = new_set - old_set
+                for d in remove:
+                    del self.__channels[d]
+                for d in add:
+                    self.__channels[d]
+
+                self.__gui.update()
+        elif len(channels) > 0:
+            self.notify("CHANNELS: {chans}".format(chans=" ".join(channels)))
 
     def receivedError(self, socket, error_name, error_msg):
         self.notify("ERROR: {error_t}: {error_m}".format(error_t=error_name, error_m=error_msg))

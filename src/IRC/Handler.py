@@ -128,8 +128,8 @@ class IRCHandler():
                 'msg'      : lambda s, msg: self.receivedMsg(s, msg['src'], msg['targets'], msg['msg']),
             },
             'reply':{
-                'ok'   : lambda s, msg: self.receivedOk(s),
-                'names': lambda s, msg: self.receivedNames(s, msg['channel'], msg['names'])
+                'channels' : lambda s, msg: self.receivedChannelsReply(s, msg['channels']),
+                'names'    : lambda s, msg: self.receivedNames(s, msg['channel'], msg['names']),
             },
             'error':{
                 'error' : lambda s, msg: self.receivedError(s, msg['error'], msg['msg'])
@@ -145,7 +145,7 @@ class IRCHandler():
 
     def isRunning(self):
         return self.__running
-    
+
     def run(self, shutdown=True):
         def maybeSocket(s):
             if type(s) is SocketBuffer:
@@ -305,11 +305,11 @@ class IRCHandler():
         pass
 
     @abstractmethod
-    def receivedOk(self, socket):
+    def receivedNames(self, socket, channel, names):
         pass
 
     @abstractmethod
-    def receivedNames(self, socket, channel, names):
+    def receivedChannelsReply(self, socket, channels):
         pass
 
     @abstractmethod

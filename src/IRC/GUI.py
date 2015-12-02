@@ -49,9 +49,9 @@ class ClientGUI(ClientConsole):
         super(ClientGUI, self).__init__(client)
         self.__screen = screen
         self.__borders = []
-        #tty.setcbreak(sys.stdin.fileno())
+
         (height, width) = self.__screen.getmaxyx()
-        chanB = BorderedWin("Joined", height - 1, 15, 0, 0)
+        chanB = BorderedWin("Channels", height - 1, 15, 0, 0)
         self.__borders.append(chanB)
         self.__channelWin = chanB.getWin()
 
@@ -117,7 +117,12 @@ class ClientGUI(ClientConsole):
         all_chans = self._client.getChannels().keys()
         for i in range(0, min(len(all_chans), self.__channelWin.getmaxyx()[0])):
             cur = self._client.currentChannel() == all_chans[i]
-            attr = curses.A_REVERSE if cur else curses.A_NORMAL
+            if cur:
+                attr = curses.A_REVERSE
+            elif all_chans[i] in self._client.getJoined():
+                attr = curses.A_BOLD
+            else:
+                attr = curses.A_DIM
             if all_chans[i]:
                 self.__channelWin.addstr("{chan}\n".format(chan=all_chans[i]), attr)
 

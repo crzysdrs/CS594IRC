@@ -149,7 +149,6 @@ class IRCServer(IRC.Handler.IRCHandler):
             for c in channels:
                 self.sendMsgToSockets(map(lambda u: u.getSocketBuffer(), c.getUsers()), userIRC.cmdQuit(msg))
 
-
     def timeStep(self):
         if time.time() - self.__last_ping > 2:
             #logging.info("Verifying Pongs/Sending Pings")
@@ -159,6 +158,14 @@ class IRCServer(IRC.Handler.IRCHandler):
                 else:
                       client.sendPing(self, str(time.time()))
 
+            #Periodically Cull Empty Rooms
+            save_rooms = filter(lambda r : len(r.getUsers()) >  0, self.__rooms)
+            delete_rooms = filter(lambda r : len(r.getUsers()) ==  0, self.__rooms)
+
+            for c in delete_rooms:
+                logging.info("Room Destroyed {n}".format(n=c.getName()))
+
+            self.__rooms = save_rooms
             self.__last_ping = time.time()
 
     def findUserByName(self, name):
@@ -284,8 +291,8 @@ class IRCServer(IRC.Handler.IRCHandler):
 
     def receivedChannels(self, socket):
         for c in chunks(map(lambda x : x.getName(), self.__rooms), 5):
-            self.sendMsg(socket, self._ircmsg.replyNames('#fake', c))
-        self.sendMsg(socket, self._ircmsg.replyNames('#fake', []))
+            self.sendMsg(socket, self._ircmsg.replyChannels(c))
+        self.sendMsg(socket, self._ircmsg.replyChannels([]))
 
     def receivedUsers(self, socket, channels):
         for c in channels:
@@ -337,11 +344,11 @@ class IRCServer(IRC.Handler.IRCHandler):
         else:
             self.sendMsgToTargets(targets, msg)
 
-    def receivedNames(self, socket, names):
+    def receivedNames(self, socket, channel, names):
         pass # server should not received messages
 
-    def receivedOk(self, socket):
-        pass # server should not receive ok
+    def receivedChannelsReply(self, socket, chnanels):
+        pass # server should not received messages
 
     def sentInvalid(self, socket, msg):
         logging.error("Attempted to send invalid message {msg} to {user}".format(

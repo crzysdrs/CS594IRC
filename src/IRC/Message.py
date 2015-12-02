@@ -6,10 +6,10 @@ class IRCMessage:
 
     def updateSrc(self, src):
         self.__src = src
-        
+
     def cmdNick(self, nick):
         return {'cmd':'nick', 'src':self.__src, 'update':nick}
-    
+
     def cmdQuit(self, msg):
         return {'cmd':'quit', 'src':self.__src, 'msg':msg}
 
@@ -40,8 +40,8 @@ class IRCMessage:
     def errorMsg(self, type, msg):
         return {'error':type, 'msg':msg}
 
-    def replyOk(self):
-        return {'reply':'ok'}
+    def replyChannels(self, channels):
+        return {'reply':'channels', 'channels':channels}
 
     def replyNames(self, channel, names):
         return {'reply':'names', 'channel':channel, 'names':names}

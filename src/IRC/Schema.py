@@ -101,7 +101,7 @@ Defn = {
             },
             'required':['channels', 'msg']
         },
-        'channels':{            
+        'channels':{
             'type': 'object',
             'properties':{
                 'cmd' : {'enum': ['channels']},
@@ -184,20 +184,13 @@ Defn = {
                 'type':'string',
             }
         },
-        'oneOf': [            
-            {'$ref':'#/replies/ok'},
+        'oneOf': [
+            {'$ref':'#/replies/channels'},
             {'$ref':'#/replies/names'},
         ],
         'required':['reply']
     },
     'replies':{
-        'ok':{
-            'type':'object',
-            'properties': {
-                'reply':{'enum':['ok']}
-            },
-            'required':['reply']
-        },
         'names':{
             'type': 'object',
             'properties': {
@@ -206,13 +199,28 @@ Defn = {
                 'names': {
                     'type' : 'array',
                     'items' : {
-                        'oneOf':[{'$ref' : '#/targets'}]
+                        'oneOf':[{'$ref' : '#/target/user'}]
                     },
                     'minItems':0,
                     'uniqueItems': True
                 },
             },
             'required':['reply', 'names']
+        },
+        'channels':{
+            'type': 'object',
+            'properties': {
+                'reply' : {'enum': ['channels']},
+                'channels': {
+                    'type' : 'array',
+                    'items' : {
+                        'oneOf':[{'$ref' : '#/target/channel'}]
+                    },
+                    'minItems':0,
+                    'uniqueItems': True
+                },
+            },
+            'required':['reply', 'channels']
         }
     }
 }
