@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from __future__ import  with_statement, print_function
+from __future__ import with_statement, print_function
 import select
 import socket
 import sys
@@ -12,10 +12,12 @@ import json
 import jsonschema
 import IRC
 from IRC.Handler import SocketBuffer
-from  more_itertools import unique_everseen
+from more_itertools import unique_everseen
+
 
 def unique(items):
     return list(unique_everseen(items))
+
 
 class IRCUser(object):
     def __init__(self, socket, address):
@@ -30,20 +32,25 @@ class IRCUser(object):
         return self.__ping != None
 
     def sendPing(self, server, ping):
-       self.__ping = ping
-       #logging.info("Sending Ping {ping}".format(ping=ping))
-       server.sendMsg(self.__sb, server.getIRCMsg().cmdPing(ping))
+        self.__ping = ping
+        #logging.info("Sending Ping {ping}".format(ping=ping))
+        server.sendMsg(self.__sb, server.getIRCMsg().cmdPing(ping))
 
     def receivedPong(self, pong):
-       if self.__ping == None:
-           logging.warning("Received a pong where no ping existed.")
-           return False
-       elif self.__ping != pong:
-           logging.warning("Received incorrect pong '{ping}' != '{pong}' ".format(ping=self.__ping, pong=pong))
-           return False
-       else:
-           self.__ping = None
-           return True
+        if self.__ping == None:
+            logging.warning("Received a pong where no ping existed.")
+            return False
+        elif self.__ping != pong:
+            logging.warning(
+                "Received incorrect pong '{ping}' != '{pong}' ".format(
+                    ping=self.__ping,
+                    pong=pong
+                )
+            )
+            return False
+        else:
+            self.__ping = None
+            return True
 
     def getChannels(self):
         return self.__channels
@@ -58,7 +65,12 @@ class IRCUser(object):
         return self.__name
 
     def changeName(self, name):
-        logging.info("User changed name from {old} to {new}.".format(old=self.__name, new=name))
+        logging.info(
+            "User changed name from {old} to {new}.".format(
+                old=self.__name,
+                new=name
+            )
+        )
         self.__name = name
 
     def leave(self, handler):
@@ -75,7 +87,8 @@ class IRCUser(object):
     def __str__(self):
         return "%s %s" % (self.__name, self.__address)
 
-class IRCChannel:
+
+class IRCChannel(object):
     def __init__(self, name):
         self.__name = name
         self.__users = []
@@ -100,14 +113,17 @@ class IRCChannel:
     def getUsers(self):
         return self.__users
 
+
 def chunks(l, n):
     """Yield successive n-sized chunks from l."""
     for i in xrange(0, len(l), n):
-        yield l[i:i+n]
+        yield l[i:i + n]
+
 
 SERVERNAME = "SERVER"
 NEWUSERNAME = "NEWUSER"
 SPECIALNAMES = [SERVERNAME, NEWUSERNAME]
+
 
 class IRCServer(IRC.Handler.IRCHandler):
     def __init__(self, host, port):
@@ -127,7 +143,7 @@ class IRCServer(IRC.Handler.IRCHandler):
             backlog = 5
             self.__server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.__server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.__server.bind((self.getHost(),self.getPort()))
+            self.__server.bind((self.getHost(), self.getPort()))
             self.__server.listen(backlog)
             self.__server = SocketBuffer(self.__server, misc=None)
             logging.info("Server listening.")
@@ -170,20 +186,26 @@ class IRCServer(IRC.Handler.IRCHandler):
             self.__users.remove(user)
 
             for c in channels:
-                self.sendMsgToSockets(map(lambda u: u.getSocketBuffer(), c.getUsers()), userIRC.cmdQuit(msg))
+                self.sendMsgToSockets(
+                    map(
+                        lambda u: u.getSocketBuffer(), c.getUsers()
+                    ), userIRC.cmdQuit(msg)
+                )
 
     def timeStep(self):
         if time.time() - self.__last_ping > 2:
             #logging.info("Verifying Pongs/Sending Pings")
             for client in self.__users:
                 if client.unansweredPing():
-                      self.endUser(client, 'No ping response')
+                    self.endUser(client, 'No ping response')
                 else:
-                      client.sendPing(self, str(time.time()))
+                    client.sendPing(self, str(time.time()))
 
             #Periodically Cull Empty Rooms
-            save_rooms = filter(lambda r : len(r.getUsers()) >  0, self.__rooms)
-            delete_rooms = filter(lambda r : len(r.getUsers()) ==  0, self.__rooms)
+            save_rooms = filter(lambda r: len(r.getUsers()) > 0, self.__rooms)
+            delete_rooms = filter(
+                lambda r: len(r.getUsers()) == 0, self.__rooms
+            )
 
             for c in delete_rooms:
                 logging.info("Room Destroyed {n}".format(n=c.getName()))
@@ -192,21 +214,27 @@ class IRCServer(IRC.Handler.IRCHandler):
             self.__last_ping = time.time()
 
     def findUserByName(self, name):
-        results = filter(lambda x : x.getName() == name, self.__users)
+        results = filter(lambda x: x.getName() == name, self.__users)
         if len(results) == 0:
             return None
         else:
             return results[0]
 
     def findChannelByName(self, name):
-        results = filter(lambda x : x.getName() == name, self.__rooms)
+        results = filter(lambda x: x.getName() == name, self.__rooms)
         if len(results) == 0:
             return None
         else:
             return results[0]
 
     def userNameAvailable(self, name):
-        return all(map(lambda n : n != name, map(lambda x: x.getName(), self.__users) + SPECIALNAMES))
+        return all(
+            map(
+                lambda n: n != name, map(
+                    lambda x: x.getName(), self.__users
+                ) + SPECIALNAMES
+            )
+        )
 
     def connectionDrop(self, socket):
         user = socket.getMisc()
@@ -215,11 +243,15 @@ class IRCServer(IRC.Handler.IRCHandler):
 
     def getInputSocketList(self):
         inputs = [self.__server]
-        inputs.extend(map(lambda u : u.getSocketBuffer(), self.__users))
+        inputs.extend(map(lambda u: u.getSocketBuffer(), self.__users))
         return inputs
 
     def getOutputSocketList(self):
-        return filter(lambda s: s.readyToSend(), map(lambda u : u.getSocketBuffer(), self.__users))
+        return filter(
+            lambda s: s.readyToSend(), map(
+                lambda u: u.getSocketBuffer(), self.__users
+            )
+        )
 
     def socketInputReady(self, socket):
         if socket == self.__server:
@@ -228,15 +260,20 @@ class IRCServer(IRC.Handler.IRCHandler):
         elif type(socket) is SocketBuffer and type(socket.getMisc()) is IRCUser:
             self.receiveMsg(socket)
         else:
-            logging.critical("Unknown socket connection %s %s " % (socket, type(socket)))
+            logging.critical(
+                "Unknown socket connection %s %s " % (socket, type(socket))
+            )
 
     def socketExceptReady(self, socket):
-        pass # not sure if needs handling
+        pass  # not sure if needs handling
 
     def validTargets(self, targets):
         return all(
-            map(lambda t : self.findChannelByName(t) != None or self.findUserByName(t) != None,
-            targets))
+            map(
+                lambda t: self.findChannelByName(t) != None or self.findUserByName(t) != None,
+                targets
+            )
+        )
 
     def socketTargets(self, targets):
         socket_targets = []
@@ -244,7 +281,11 @@ class IRCServer(IRC.Handler.IRCHandler):
             channel = self.findChannelByName(t)
             user = self.findUserByName(t)
             if channel != None:
-                socket_targets.extend(map(lambda x: x.getSocketBuffer(), channel.getUsers()))
+                socket_targets.extend(
+                    map(
+                        lambda x: x.getSocketBuffer(), channel.getUsers()
+                    )
+                )
             elif user != None:
                 socket_targets.append(user.getSocketBuffer())
 
@@ -269,52 +310,88 @@ class IRCServer(IRC.Handler.IRCHandler):
             user.changeName(newnick)
             self.sendMsg(socket, userIRC.cmdNick(newnick))
             for c in user.getChannels():
-                self.sendMsgToSockets(map(lambda u: u.getSocketBuffer(), c.getUsers()), userIRC.cmdNick(newnick))
+                self.sendMsgToSockets(
+                    map(
+                        lambda u: u.getSocketBuffer(), c.getUsers()
+                    ), userIRC.cmdNick(newnick)
+                )
         else:
-            self.sendMsg(socket,
-                         self._ircmsg.errorMsg("badnick",
-                                               "{newnick} already in use.".format(newnick=newnick)
-                         )
+            self.sendMsg(
+                socket,
+                self._ircmsg.errorMsg(
+                    "badnick",
+                    "{newnick} already in use.".format(newnick=newnick)
+                )
             )
 
     def receivedQuit(self, socket, src, msg):
         self.endUser(socket.getMisc(), msg)
 
     def receivedSQuit(self, socket, msg):
-        pass # server should not receive SQUIT messages
+        pass  # server should not receive SQUIT messages
 
     def receivedJoin(self, socket, src, channels):
         user = socket.getMisc()
-        exist_channels = filter(lambda c : c != None, map(lambda c: self.findChannelByName(c), channels))
+        exist_channels = filter(
+            lambda c: c != None, map(
+                lambda c: self.findChannelByName(c), channels
+            )
+        )
 
         if any(map(lambda c: c.userInChannel(user), exist_channels)):
-            self.sendMsg(socket, self._ircmsg.errorMsg("member", "Already a member of one or more channels"))
+            self.sendMsg(
+                socket, self._ircmsg.errorMsg(
+                    "member", "Already a member of one or more channels"
+                )
+            )
         else:
             userIRC = IRC.Message.IRCMessage(user.getName())
             match_channels = map(lambda c: self.findCreateChannel(c), channels)
             for c in match_channels:
                 c.addUser(user)
-                self.sendMsgToSockets(map(lambda u: u.getSocketBuffer(), c.getUsers()), userIRC.cmdJoin([c.getName()]))
+                self.sendMsgToSockets(
+                    map(
+                        lambda u: u.getSocketBuffer(), c.getUsers()
+                    ), userIRC.cmdJoin([c.getName()])
+                )
                 for chunk in chunks(c.getUsers(), 5):
-                    self.sendMsg(socket, self._ircmsg.replyNames(c.getName(), map(lambda u : u.getName(), chunk)))
-                self.sendMsg(socket,self._ircmsg.replyNames(c.getName(), []))
+                    self.sendMsg(
+                        socket, self._ircmsg.replyNames(
+                            c.getName(), map(lambda u: u.getName(), chunk)
+                        )
+                    )
+                self.sendMsg(socket, self._ircmsg.replyNames(c.getName(), []))
 
     def receivedLeave(self, socket, src, channels, msg):
         user = socket.getMisc()
         match_channels = map(lambda c: self.findChannelByName(c), channels)
 
         if not all(map(lambda c: c != None, match_channels)):
-            self.sendMsg(socket, self._ircmsg.errorMsg("nochannel", "One or more channels does not exist"))
+            self.sendMsg(
+                socket, self._ircmsg.errorMsg(
+                    "nochannel", "One or more channels does not exist"
+                )
+            )
         elif not all(map(lambda c: c.userInChannel(user), match_channels)):
-            self.sendMsg(socket, self._ircmsg.errorMsg("nonmember", "Not a member in one or more channels"))
+            self.sendMsg(
+                socket, self._ircmsg.errorMsg(
+                    "nonmember", "Not a member in one or more channels"
+                )
+            )
         else:
             userIRC = IRC.Message.IRCMessage(user.getName())
             for c in match_channels:
-                self.sendMsgToSockets(map(lambda u: u.getSocketBuffer(), c.getUsers()), userIRC.cmdLeave([c.getName()], msg))
+                self.sendMsgToSockets(
+                    map(
+                        lambda u: u.getSocketBuffer(), c.getUsers()
+                    ), userIRC.cmdLeave(
+                        [c.getName()], msg
+                    )
+                )
                 c.removeUser(user)
 
     def receivedChannels(self, socket):
-        for c in chunks(map(lambda x : x.getName(), self.__rooms), 5):
+        for c in chunks(map(lambda x: x.getName(), self.__rooms), 5):
             self.sendMsg(socket, self._ircmsg.replyChannels(c))
         self.sendMsg(socket, self._ircmsg.replyChannels([]))
 
@@ -322,14 +399,18 @@ class IRCServer(IRC.Handler.IRCHandler):
         for c in channels:
             chan = self.findChannelByName(c)
             if chan:
-                for u in chunks(map(lambda x : x.getName(), chan.getUsers()), 5):
+                for u in chunks(map(lambda x: x.getName(), chan.getUsers()), 5):
                     self.sendMsg(socket, self._ircmsg.replyNames(c, u))
                 self.sendMsg(socket, self._ircmsg.replyNames(c, []))
             else:
-                self.sendMsg(socket, self._ircmsg.errorMsg("nochannel", "One or more channels does not exist"))
+                self.sendMsg(
+                    socket, self._ircmsg.errorMsg(
+                        "nochannel", "One or more channels does not exist"
+                    )
+                )
 
     def receivedPing(self, socket, msg):
-        pass #should not receive pings from users
+        pass  #should not receive pings from users
 
     def receivedPong(self, socket, msg):
         user = socket.getMisc()
@@ -339,23 +420,31 @@ class IRCServer(IRC.Handler.IRCHandler):
     def receivedInvalid(self, socket, msg):
         try:
             jmsg = json.loads(msg)
-            jsonschema.validate(jmsg, IRC.Schema.Defn)
+            jsonschema.validate(jmsg, IRC.Schema.DEFN)
         except ValueError as e:
             logging.info(str(e))
         except jsonschema.exceptions.ValidationError as e:
             logging.info("Schema Message {msg}".format(msg=e.message))
         else:
-            logging.error("Schema message passed validation but failed? {msg}".format(msg=msg))
+            logging.error(
+                "Schema message passed validation but failed? {msg}".format(
+                    msg=msg
+                )
+            )
             raise BaseException("Improperly handled Validation")
 
-        self.sendMsg(socket, self._ircmsg.errorMsg("schema", "Invalid Schema in Request"))
+        self.sendMsg(
+            socket, self._ircmsg.errorMsg(
+                "schema", "Invalid Schema in Request"
+            )
+        )
 
     def receivedSignal(self, signal, frame):
         logging.warning("Server interrupted with Ctrl-C.")
         self.stop()
 
     def receivedError(self, socket, etype, emsg):
-        pass #Server doesn't care.
+        pass  #Server doesn't care.
 
     def receivedMsg(self, socket, src, targets, msg):
         srcUser = socket.getMisc()
@@ -364,19 +453,27 @@ class IRCServer(IRC.Handler.IRCHandler):
         msg = userIRC.cmdMsg(msg, targets)
 
         if not self.validTargets(targets):
-            self.sendMsg(socket, self._ircmsg.errorMsg("nonexist", "One or more channels/users does not exist"))
+            self.sendMsg(
+                socket, self._ircmsg.errorMsg(
+                    "nonexist", "One or more channels/users does not exist"
+                )
+            )
         else:
             self.sendMsgToTargets(targets, msg)
 
     def receivedNames(self, socket, channel, names):
-        pass # server should not received messages
+        pass  # server should not received messages
 
     def receivedChannelsReply(self, socket, chnanels):
-        pass # server should not received messages
+        pass  # server should not received messages
 
     def sentInvalid(self, socket, msg):
-        logging.error("Attempted to send invalid message {msg} to {user}".format(
-            msg=msg, user=socket.getMisc().getName()))
+        logging.error(
+            "Attempted to send invalid message {msg} to {user}".format(
+                msg=msg,
+                user=socket.getMisc().getName()
+            )
+        )
 
     def shutdown(self):
         logging.info("Shutting down server.")
@@ -385,6 +482,7 @@ class IRCServer(IRC.Handler.IRCHandler):
         for u in self.__users:
             self.endUser(u, 'Server Shutdown')
         logging.info("Server shut down.")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="IRC Server")
@@ -395,7 +493,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.log != None:
-        logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
+        logging.basicConfig(
+            filename=args.log,
+            filemode='w',
+            level=logging.DEBUG
+        )
 
     server = IRCServer(args.hostname, args.port)
     if server.connect():

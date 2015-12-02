@@ -1,34 +1,34 @@
-Nick = '[a-zA-Z0-9]{1,10}'
-Channel = '#[a-zA-Z0-9]{1,10}'
+NICK = '[a-zA-Z0-9]{1,10}'
+CHANNEL = '#[a-zA-Z0-9]{1,10}'
 
-Defn = {
+DEFN = {
     'oneOf': [
-        {'$ref':'#/cmd'},
-        {'$ref':'#/errors/error'},
-        {'$ref':'#/reply'},
+        {'$ref': '#/cmd'},
+        {'$ref': '#/errors/error'},
+        {'$ref': '#/reply'},
     ],
-    'targets' : {
+    'targets': {
         'oneOf': [
-            {'$ref':'#/target/user'},
-            {'$ref':'#/target/channel'},
+            {'$ref': '#/target/user'},
+            {'$ref': '#/target/channel'},
         ]
     },
-    'target' : {
-        'user' : {
-            'type':'string',
-            'pattern':'^' + Nick + '$'
+    'target': {
+        'user': {
+            'type': 'string',
+            'pattern': '^' + NICK + '$'
         },
-        'channel' : {
-            'type':'string',
-            'pattern':'^' + Channel + '$'
+        'channel': {
+            'type': 'string',
+            'pattern': '^' + CHANNEL + '$'
         }
     },
     'cmd': {
-        'type':'object',
+        'type': 'object',
         'properties': {
-            'cmd':{'type':'string'},
-            'src':{
-                'oneOf':[{'$ref':'#/targets'}]
+            'cmd': {'type': 'string'},
+            'src': {
+                'oneOf': [{'$ref': '#/targets'}]
             }
         },
         'oneOf': [
@@ -43,184 +43,181 @@ Defn = {
             {'$ref': '#/cmds/ping'},
             {'$ref': '#/cmds/pong'},
         ],
-        'required':['cmd', 'src']
+        'required': ['cmd', 'src']
     },
-    'cmds' : {
+    'cmds': {
         'nick': {
             'type': 'object',
             'properties': {
-                'cmd' : {'enum': ['nick']},
-                'update': {'type' : 'string'},
+                'cmd': {'enum': ['nick']},
+                'update': {'type': 'string'},
             },
-            'required':['update']
+            'required': ['update']
         },
         'quit': {
             'type': 'object',
             'properties': {
-                'cmd' : {'enum': ['quit']},
-                'msg': {'type' : 'string'},
+                'cmd': {'enum': ['quit']},
+                'msg': {'type': 'string'},
             },
-            'required':['msg']
+            'required': ['msg']
         },
-        'squit':{
+        'squit': {
             'type': 'object',
             'properties': {
-                'cmd' : {'enum': ['squit']},
-                'msg': {'type' : 'string'},
+                'cmd': {'enum': ['squit']},
+                'msg': {'type': 'string'},
             },
-            'required':['msg']
+            'required': ['msg']
         },
-        'join':{
+        'join': {
             'type': 'object',
             'properties': {
-                'cmd' : {'enum': ['join']},
+                'cmd': {'enum': ['join']},
                 'channels': {
-                    'type' : 'array',
-                    'items' : {
-                        'oneOf':[{'$ref' : '#/target/channel'}]
+                    'type': 'array',
+                    'items': {
+                        'oneOf': [{'$ref': '#/target/channel'}]
                     },
-                    'minItems':1,
+                    'minItems': 1,
                     'uniqueItems': True
                 },
             },
-            'required':['channels']
+            'required': ['channels']
         },
         'leave': {
             'type': 'object',
             'properties': {
-                'cmd' : {'enum': ['leave']},
+                'cmd': {'enum': ['leave']},
                 'channels': {
-                    'type' : 'array',
-                    'items' : {
-                        'oneOf':[{'$ref' : '#/target/channel'}]
+                    'type': 'array',
+                    'items': {
+                        'oneOf': [{'$ref': '#/target/channel'}]
                     },
-                    'minItems':1,
+                    'minItems': 1,
                     'uniqueItems': True
                 },
-                'msg': {'type':'string'}
+                'msg': {'type': 'string'}
             },
-            'required':['channels', 'msg']
+            'required': ['channels', 'msg']
         },
-        'channels':{
+        'channels': {
             'type': 'object',
-            'properties':{
-                'cmd' : {'enum': ['channels']},
+            'properties': {
+                'cmd': {'enum': ['channels']},
             }
         },
         'users': {
             'type': 'object',
             'properties': {
-                'cmd' : {'enum': ['users']},
+                'cmd': {'enum': ['users']},
                 'channels': {
-                    'type' : 'array',
-                    'items' : {
-                        'oneOf':[{'$ref' : '#/target/channel'}],
+                    'type': 'array',
+                    'items': {
+                        'oneOf': [{'$ref': '#/target/channel'}],
                     },
-                    'minItems':1,
+                    'minItems': 1,
                     'uniqueItems': True
                 },
             }
         },
-        'msg':{
+        'msg': {
             'type': 'object',
             'properties': {
-                'cmd' : {'enum': ['msg']},
+                'cmd': {'enum': ['msg']},
                 'targets': {
-                    'type' : 'array',
-                    'items' : {
-                        'oneOf':[{'$ref' : '#/targets'}],
+                    'type': 'array',
+                    'items': {
+                        'oneOf': [{'$ref': '#/targets'}],
                     },
-                    'minItems':1,
+                    'minItems': 1,
                     'uniqueItems': True
                 },
-                'msg':{'type': 'string'}
+                'msg': {'type': 'string'}
             },
-            'required':['targets', 'msg']
+            'required': ['targets', 'msg']
         },
         'ping': {
             'type': 'object',
             'properties': {
-                'cmd' : {'enum': ['ping']},
-                'msg':{'type': 'string'}
+                'cmd': {'enum': ['ping']},
+                'msg': {'type': 'string'}
             },
-            'required':['msg']
+            'required': ['msg']
         },
-        'pong':{
+        'pong': {
             'type': 'object',
             'properties': {
-                'cmd' : {'enum': ['pong']},
-                'msg':{'type': 'string'}
+                'cmd': {'enum': ['pong']},
+                'msg': {'type': 'string'}
             },
-            'required':['msg']
+            'required': ['msg']
         }
     },
-    'errors':{
-        'error':{
+    'errors': {
+        'error': {
             'type': 'object',
             'properties': {
-                'error' : {
-                    'enum' : [
-                        'badnick',
-                        'nickinuse',
-                        'schema',
-                        'nochannel',
-                        'badchannel',
-                        'nonmember',
-                        'member',
-                        'nonexist'
+                'error': {
+                    'enum': [
+                        'badnick', 'nickinuse', 'schema', 'nochannel',
+                        'badchannel', 'nonmember', 'member', 'nonexist'
                     ]
                 },
                 'msg': {
-                    'type':'string'
+                    'type': 'string'
                 }
             },
-            'required':['error', 'msg']
+            'required': ['error', 'msg']
         }
     },
-    'reply':{
-        'type':'object',
-        'properties':{
+    'reply': {
+        'type': 'object',
+        'properties': {
             'reply': {
-                'type':'string',
+                'type': 'string',
             }
         },
         'oneOf': [
-            {'$ref':'#/replies/channels'},
-            {'$ref':'#/replies/names'},
+            {'$ref': '#/replies/channels'},
+            {'$ref': '#/replies/names'},
         ],
-        'required':['reply']
+        'required': ['reply']
     },
-    'replies':{
-        'names':{
+    'replies': {
+        'names': {
             'type': 'object',
             'properties': {
-                'reply' : {'enum': ['names']},
-                'channel' : {'type' : 'string', 'oneOf':[{'$ref' : '#/target/channel'}]},
+                'reply': {'enum': ['names']},
+                'channel': {
+                    'type': 'string',
+                    'oneOf': [{'$ref': '#/target/channel'}]
+                },
                 'names': {
-                    'type' : 'array',
-                    'items' : {
-                        'oneOf':[{'$ref' : '#/target/user'}]
+                    'type': 'array',
+                    'items': {
+                        'oneOf': [{'$ref': '#/target/user'}]
                     },
-                    'minItems':0,
+                    'minItems': 0,
                     'uniqueItems': True
                 },
             },
-            'required':['reply', 'names']
+            'required': ['reply', 'names']
         },
-        'channels':{
+        'channels': {
             'type': 'object',
             'properties': {
-                'reply' : {'enum': ['channels']},
+                'reply': {'enum': ['channels']},
                 'channels': {
-                    'type' : 'array',
-                    'items' : {
-                        'oneOf':[{'$ref' : '#/target/channel'}]
+                    'type': 'array',
+                    'items': {
+                        'oneOf': [{'$ref': '#/target/channel'}]
                     },
-                    'minItems':0,
+                    'minItems': 0,
                     'uniqueItems': True
                 },
             },
-            'required':['reply', 'channels']
+            'required': ['reply', 'channels']
         }
     }
 }

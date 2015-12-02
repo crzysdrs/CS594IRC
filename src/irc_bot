@@ -10,7 +10,7 @@ import socket
 
 cmds = [
     "/join {channel}",
-    "/join {channel},{channel2}"
+    "/join {channel},{channel2}",
     "/migrate {channel}",
     "/msg {user} {message}",
     "/msg {channel} {message}",
@@ -27,9 +27,10 @@ cmds = [
     "/invalid cmd",
 ]
 
-channels=["#test", "#bots", "#ignore"]
-nicks=["bot1", "bot2", "bot3", "bot4", "bot5"]
-msgs=["This is a test", "I am a bot", "Are you a bot?"]
+channels = ["#test", "#bots", "#ignore"]
+nicks = ["bot1", "bot2", "bot3", "bot4", "bot5"]
+msgs = ["This is a test", "I am a bot", "Are you a bot?"]
+
 
 class IRCBot(IRCClient):
     def __init__(self, hostname, port, cmds=100):
@@ -71,6 +72,7 @@ class IRCBot(IRCClient):
             self.inputCmd(cmd)
             self.__lasttime = time.time()
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="IRC Client")
     parser.add_argument('--hostname', help="Hostname", default="localhost")
@@ -80,7 +82,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.log != None:
-        logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
+        logging.basicConfig(
+            filename=args.log,
+            filemode='w',
+            level=logging.DEBUG
+        )
 
     client = IRCBot(args.hostname, args.port)
     if client.connect():

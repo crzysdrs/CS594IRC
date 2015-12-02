@@ -1,14 +1,10 @@
 #!/usr/bin/env python
-import socket
+import socket as sockmod
 import sys
 import argparse
 import re
-import select
-import json
-from  more_itertools import unique_everseen
-from collections import deque
+from more_itertools import unique_everseen
 import IRC
-import tty
 import curses
 from collections import defaultdict
 import logging
@@ -16,23 +12,30 @@ from IRC.Handler import SocketBuffer
 import signal
 from IRC.GUI import ClientGUI, ClientConsole
 
+
 def unique(items):
     return list(unique_everseen(items))
 
+
 class CommandParseError(Exception):
     def __init__(self, msg):
+        super(CommandParseError, self).__init__(self)
         self.__msg = msg
 
     def __str__(self):
         return self.__msg
 
+
 class CommandParseUnimplemented(CommandParseError):
     def __init__(self, msg):
+        super(CommandParseUnimplemented, self).__init__(self)
         self.__msg = msg
+
     def __str__(self):
         return "Unimplemented: %s" % (self.__msg)
 
-class CmdArg:
+
+class CmdArg(object):
     def __init__(self, regex, error):
         self.__regex = regex
         self.__error = error
@@ -43,7 +46,8 @@ class CmdArg:
     def error(self):
         return self.__error
 
-class CommandResult:
+
+class CommandResult(object):
     def __init__(self, fn, name, args):
         self.__fn = fn
         self.__name = name
@@ -52,7 +56,8 @@ class CommandResult:
     def execute(self, client):
         self.__fn(client, *self.__args)
 
-class Command:
+
+class Command(object):
     def __init__(self, name, cmd, args=None, extra=False):
         self.__name = name
         if args:
@@ -61,90 +66,105 @@ class Command:
             self.__args = []
         self.__cmd = cmd
         self.__extra = extra
+
     def name(self):
         return self.__name
 
     def __pattern(self):
-        p = "^/" + self.__name
+        p = r"^/" + self.__name
         for a in self.__args:
-            p += '\s+(\S+)'
-        p += '\s*'
+            p += r'\s+(\S+)'
+        p += r'\s*'
         if self.__extra:
-            p += '(.*)'
-        p += '\r?\n?$'
+            p += r'(.*)'
+        p += r'\r?\n?$'
         return p
 
     def process(self, line):
         m = re.match(self.__pattern(), line)
         if m:
-            compare = map (lambda (arg, s): (arg, re.match(arg.pattern(), s), s),  zip(self.__args, m.groups()))
-            valid = True
+            compare = map(
+                lambda (arg, s): (arg, re.match(arg.pattern(), s), s), zip(
+                    self.__args, m.groups()
+                )
+            )
             for (a, v, s) in compare:
                 if not v:
-                    raise CommandParseError("Invalid Argument: %s, Error: %s" % (s, a.error()))
-                    valid = False
-            if valid:
-                return CommandResult(self.__cmd, self.__name, list(m.groups()))
-            else:
-                return None
+                    raise CommandParseError(
+                        "Invalid Argument: %s, Error: %s" % (s, a.error())
+                    )
+            return CommandResult(self.__cmd, self.__name, list(m.groups()))
         else:
-            raise CommandParseError("%s Expected %d argument(s)" % (line, len(self.__args)))
-            return None
+            raise CommandParseError(
+                "%s Expected %d argument(s)" % (line, len(self.__args))
+            )
 
-class CommandProcessor:
-    CHANNEL_LIST = "^({channel},)*{channel}$".format(channel=IRC.Schema.Channel)
-    NICK_LIST = "^({nick},)*{nick}$".format(nick=IRC.Schema.Nick)
-    CHANNELNICK_LIST = "^(({nick}|{channel}),)*({nick}|{channel})$".format(nick=IRC.Schema.Nick,channel=IRC.Schema.Channel)
+
+class CommandProcessor(object):
+    CHANNEL_LIST = "^({channel},)*{channel}$".format(channel=IRC.Schema.CHANNEL)
+    NICK_LIST = "^({nick},)*{nick}$".format(nick=IRC.Schema.NICK)
+    CHANNELNICK_LIST = "^(({nick}|{channel}),)*({nick}|{channel})$".format(
+        nick=IRC.Schema.NICK,
+        channel=IRC.Schema.CHANNEL
+    )
+
     def __init__(self):
         self.__cmds = [
-            Command('join',
-                    self.__joinCmd,
-                    args=[
-                        CmdArg(self.CHANNEL_LIST, "Invalid Channel List")
-                    ]
-            ),
-            Command('leave',
-                    self.__leaveCmd,
-                    args=[
-                        CmdArg(self.CHANNEL_LIST, "Invalid Channel List")
-                    ],
-                    extra=True
-            ),
-            Command('channels',
-                    self.__channelsCmd,
-            ),
-            Command('users',
-                    self.__usersCmd,
-                    args=[
-                        CmdArg(self.CHANNEL_LIST, "Invalid Channel List")
-                    ]
-            ),
-            Command('nick',
-                    self.__nickCmd,
-                    args=[
-                        CmdArg('^{nick}$'.format(nick=IRC.Schema.Nick), "Invalid NickName")
-                    ]
-            ),
-            Command('quit',
-                    self.__quitCmd,
-                    extra=True
-            ),
-            Command('msg',
-                    self.__msgCmd,
-                    args=[
-                        CmdArg(self.CHANNELNICK_LIST, "Invalid Channel or Nickname List")
-                    ],
-                    extra=True
-            ),
-            Command('chanmsg',
-                    self.__chanMsgCmd,
-                    extra=True
-            ),
-            Command('migrate',
-                    self.__migrateCmd,
-                    args=[
-                        CmdArg(IRC.Schema.Channel, "Invalid Channel")
-                    ]
+            Command(
+                'join',
+                self.__joinCmd,
+                args=[
+                    CmdArg(self.CHANNEL_LIST, "Invalid Channel List")
+                ]
+            ), Command(
+                'leave',
+                self.__leaveCmd,
+                args=[
+                    CmdArg(self.CHANNEL_LIST, "Invalid Channel List")
+                ],
+                extra=True
+            ), Command(
+                'channels',
+                self.__channelsCmd,
+            ), Command(
+                'users',
+                self.__usersCmd,
+                args=[
+                    CmdArg(self.CHANNEL_LIST, "Invalid Channel List")
+                ]
+            ), Command(
+                'nick',
+                self.__nickCmd,
+                args=[
+                    CmdArg(
+                        '^{nick}$'.format(nick=IRC.Schema.NICK),
+                        "Invalid NickName"
+                    )
+                ]
+            ), Command(
+                'quit',
+                self.__quitCmd,
+                extra=True
+            ), Command(
+                'msg',
+                self.__msgCmd,
+                args=[
+                    CmdArg(
+                        self.CHANNELNICK_LIST,
+                        "Invalid Channel or Nickname List"
+                    )
+                ],
+                extra=True
+            ), Command(
+                'chanmsg',
+                self.__chanMsgCmd,
+                extra=True
+            ), Command(
+                'migrate',
+                self.__migrateCmd,
+                args=[
+                    CmdArg(IRC.Schema.CHANNEL, "Invalid Channel")
+                ]
             )
         ]
 
@@ -152,44 +172,52 @@ class CommandProcessor:
         irc_msg = client.getIRCMsg().cmdJoin(unique(channels.split(',')))
         client.sendMsg(client.serverSocket(), irc_msg)
 
-    def __leaveCmd(c, client, channels, msg):
+    def __leaveCmd(self, client, channels, msg):
         irc_msg = client.getIRCMsg().cmdLeave(unique(channels.split(',')), msg)
         client.sendMsg(client.serverSocket(), irc_msg)
 
-    def __channelsCmd(c, client):
+    def __channelsCmd(self, client):
         irc_msg = client.getIRCMsg().cmdChannels()
         client.sendMsg(client.serverSocket(), irc_msg)
 
-    def __usersCmd(c, client, channels):
+    def __usersCmd(self, client, channels):
         irc_msg = client.getIRCMsg().cmdUsers(unique(channels.split(',')))
         client.sendMsg(client.serverSocket(), irc_msg)
 
-    def __nickCmd(c, client, nick):
+    def __nickCmd(self, client, nick):
         irc_msg = client.getIRCMsg().cmdNick(nick)
         client.sendMsg(client.serverSocket(), irc_msg)
 
-    def __quitCmd(c, client, msg):
+    def __quitCmd(self, client, msg):
         irc_msg = client.getIRCMsg().cmdQuit(msg)
         client.sendMsg(client.serverSocket(), irc_msg)
 
-    def __chanMsgCmd(c, client, msg):
+    def __chanMsgCmd(self, client, msg):
         if client.currentChannel():
             irc_msg = client.getIRCMsg().cmdMsg(msg, [client.currentChannel()])
             client.sendMsg(client.serverSocket(), irc_msg)
         else:
             client.notify("**** You aren't in a channel (/migrate to one) ****")
 
-    def __migrateCmd(c, client, chan):
+    def __migrateCmd(self, client, chan):
         if chan == client.currentChannel():
             client.notify("*** Already in {chan} ***".format(chan=chan))
         if chan in client.getChannels():
             client.setChannel(chan)
             client.notify("*** Migrated to {chan} ***".format(chan=chan))
         else:
-            client.notify("*** You aren't a member of {chan} ***".format(chan=chan))
+            client.notify(
+                "*** You aren't a member of {chan} ***".format(
+                    chan=chan
+                )
+            )
 
-    def __msgCmd(c, client, nicks, msg):
-        client.sendMsg(client.serverSocket(), client.getIRCMsg().cmdMsg(msg, unique(nicks.split(','))))
+    def __msgCmd(self, client, nicks, msg):
+        client.sendMsg(
+            client.serverSocket(), client.getIRCMsg().cmdMsg(
+                msg, unique(nicks.split(','))
+            )
+        )
 
     def isCmd(self, line):
         if len(line) > 0:
@@ -204,18 +232,25 @@ class CommandProcessor:
         matched_cmd = filter(lambda c: re.match(r'^/{name}\b'.format(name=c.name()), line), self.__cmds)
 
         if len(matched_cmd) == 0:
-            raise CommandParseError("Unknown command %s" % re.match("^(/\S+)", line).group(1))
+            raise CommandParseError(
+                "Unknown command %s" % re.match(
+                    "^(/\S+)", line
+                ).group(1)
+            )
         elif len(matched_cmd) > 1:
             raise CommandParseError("Multiple commands match.")
 
         cmd = matched_cmd[0]
         return cmd.process(line)
 
+
 def clientIgnore(some_func):
     def inner():
         print "Client received an ignored message."
         return
+
     return inner
+
 
 class IRCClient(IRC.Handler.IRCHandler):
     def __init__(self, host, port, userinput=sys.stdin):
@@ -236,12 +271,12 @@ class IRCClient(IRC.Handler.IRCHandler):
     def connect(self):
         try:
             logging.info("Attempting to start client.")
-            self.__server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.__server = sockmod.socket(sockmod.AF_INET, sockmod.SOCK_STREAM)
             self.__server.connect((self.getHost(), self.getPort()))
             self.__server = SocketBuffer(self.__server)
             logging.info("Client Connected to server.")
             return True
-        except socket.error as e:
+        except sockmod.error as e:
             if e.errno == 111:
                 logging.critical(
                     "Can't connect to {host}:{port}. Is the server running?".format(
@@ -294,7 +329,7 @@ class IRCClient(IRC.Handler.IRCHandler):
         return self.__channels
 
     def currentChannel(self):
-        return  self.__currentChannel
+        return self.__currentChannel
 
     def setChannel(self, chan):
         self.__currentChannel = chan
@@ -304,7 +339,7 @@ class IRCClient(IRC.Handler.IRCHandler):
         return [self.__input, self.__server]
 
     def getOutputSocketList(self):
-        return filter(lambda s : s.readyToSend(), [self.__server])
+        return filter(lambda s: s.readyToSend(), [self.__server])
 
     def serverSocket(self):
         return self.__server
@@ -326,7 +361,7 @@ class IRCClient(IRC.Handler.IRCHandler):
             self.receiveMsg(socket)
 
     def socketExceptReady(self, socket):
-        pass #does the client care?
+        pass  #does the client care?
 
     def connectionDrop(self, socket):
         if socket == self.__server:
@@ -340,14 +375,26 @@ class IRCClient(IRC.Handler.IRCHandler):
         for (k, v) in self.__channels.iteritems():
             if src in v:
                 notify_chans.append(k)
-            self.__channels[k] = map(lambda n : newnick if n == src else n, v)
+            self.__channels[k] = map(lambda n: newnick if n == src else n, v)
 
         if self.__nick == src:
             self.__nick = newnick
             self._ircmsg.updateSrc(newnick)
-            self.updateChat("*** You ({oldnick}) are now {newnick} ****".format(oldnick=src, newnick=newnick), self.__channels)
+            self.updateChat(
+                "*** You ({oldnick}) are now {newnick} ****".format(
+                    oldnick=src,
+                    newnick=newnick
+                ),
+                self.__channels
+            )
         else:
-            self.updateChat("*** {oldnick} is now {newnick} ****".format(oldnick=src, newnick=newnick), notify_chans)
+            self.updateChat(
+                "*** {oldnick} is now {newnick} ****".format(
+                    oldnick=src,
+                    newnick=newnick
+                ),
+                notify_chans
+            )
         self.__gui.update()
 
     def receivedQuit(self, socket, src, msg):
@@ -360,7 +407,13 @@ class IRCClient(IRC.Handler.IRCHandler):
         if src == self.__nick:
             notify_chans.append(None)
 
-        self.updateChat("*** {src} quit ({msg})".format(src=src, msg=msg), notify_chans)
+        self.updateChat(
+            "*** {src} quit ({msg})".format(
+                src=src,
+                msg=msg
+            ),
+            notify_chans
+        )
         self.__gui.updateUsers()
 
         if src == self.__nick:
@@ -377,9 +430,16 @@ class IRCClient(IRC.Handler.IRCHandler):
             unique(self.__channels[c])
 
         if src == self.__nick:
-            self.notify("*** You joined the channel {channels}".format(channels=channels))
+            self.notify(
+                "*** You joined the channel {channels}".format(
+                    channels=channels
+                )
+            )
         else:
-            self.updateChat("*** {src} joined the channel".format(src=src), channels)
+            self.updateChat(
+                "*** {src} joined the channel".format(src=src),
+                channels
+            )
         self.__gui.update()
 
     def receivedLeave(self, socket, src, channels, msg):
@@ -391,13 +451,19 @@ class IRCClient(IRC.Handler.IRCHandler):
                         self.__currentChannel = None
                     delchannels.append(k)
                 else:
-                    self.__channels[k] = filter(lambda n : n != src, v)
+                    self.__channels[k] = filter(lambda n: n != src, v)
 
         for d in delchannels:
             self.__joined.remove(d)
 
         if src != self.__nick:
-            self.updateChat("*** {src} left the channel ({msg})".format(src=src, msg=msg), channels)
+            self.updateChat(
+                "*** {src} left the channel ({msg})".format(
+                    src=src,
+                    msg=msg
+                ),
+                channels
+            )
         self.__gui.update()
 
     @clientIgnore
@@ -409,7 +475,7 @@ class IRCClient(IRC.Handler.IRCHandler):
         pass
 
     def receivedMsg(self, socket, src, targets, msg):
-        channels = filter(lambda c : c in self.__channels, targets)
+        channels = filter(lambda c: c in self.__channels, targets)
         if self.__nick in targets:
             self.notify("*** {src}: {msg}".format(src=src, msg=msg))
         elif len(channels) > 0:
@@ -430,7 +496,12 @@ class IRCClient(IRC.Handler.IRCHandler):
                 self.__tempNames = []
             self.__gui.update()
         elif len(names) > 0:
-            self.notify("{chan}: {users}".format(chan=channel, users=" ".join(names)))
+            self.notify(
+                "{chan}: {users}".format(
+                    chan=channel,
+                    users=" ".join(names)
+                )
+            )
 
     def receivedChannelsReply(self, socket, channels):
         if self.__gui.isGUI():
@@ -444,14 +515,19 @@ class IRCClient(IRC.Handler.IRCHandler):
                 for d in remove:
                     del self.__channels[d]
                 for d in add:
-                    self.__channels[d]
+                    self.__channels[d] = []
 
                 self.__gui.update()
         elif len(channels) > 0:
             self.notify("CHANNELS: {chans}".format(chans=" ".join(channels)))
 
     def receivedError(self, socket, error_name, error_msg):
-        self.notify("ERROR: {error_t}: {error_m}".format(error_t=error_name, error_m=error_msg))
+        self.notify(
+            "ERROR: {error_t}: {error_m}".format(
+                error_t=error_name,
+                error_m=error_msg
+            )
+        )
 
     def receivedInvalid(self, socket, msg):
         self.notify("BAD SERVER MSG: {msg}".format(msg=msg))
@@ -470,6 +546,7 @@ class IRCClient(IRC.Handler.IRCHandler):
         self.notify("*** Shutting Down Client ***")
         self.__server.close()
 
+
 def main():
     parser = argparse.ArgumentParser(description="IRC Client")
     parser.add_argument('--hostname', help="Hostname", default="localhost")
@@ -480,7 +557,11 @@ def main():
     args = parser.parse_args()
 
     if args.log != None:
-        logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
+        logging.basicConfig(
+            filename=args.log,
+            filemode='w',
+            level=logging.DEBUG
+        )
 
     client = IRCClient(args.hostname, args.port)
     if client.connect():

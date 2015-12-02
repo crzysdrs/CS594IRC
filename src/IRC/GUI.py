@@ -2,16 +2,19 @@ import curses
 from curses import textpad
 import logging
 
-class BorderedWin:
+
+class BorderedWin(object):
     def __init__(self, title, height, width, y, x):
-        logging.info("Create Border {height},{width},{y},{x}".format(
-            height=height,
-            width=width,
-            y=y,
-            x=x)
+        logging.info(
+            "Create Border {height},{width},{y},{x}".format(
+                height=height,
+                width=width,
+                y=y,
+                x=x
+            )
         )
         self.__border = curses.newwin(height, width, y, x)
-        self.__win = self.__border.subwin(height - 2, width - 2, y+1, x + 1)
+        self.__win = self.__border.subwin(height - 2, width - 2, y + 1, x + 1)
         self.__title = title
         self.__win.scrollok(True)
 
@@ -27,22 +30,29 @@ class BorderedWin:
         self.__border.refresh()
         self.__win.refresh()
 
+
 class ClientConsole(object):
     def __init__(self, client):
         self._client = client
 
     def isGUI(self):
         return False
+
     def update(self):
         pass
+
     def updateChat(self):
         pass
+
     def updateUsers(self):
         pass
+
     def updateChannels(self):
         pass
+
     def keypress(self):
         return self._client.getUserInput()
+
 
 class ClientGUI(ClientConsole):
     def __init__(self, client, screen):
@@ -59,20 +69,18 @@ class ClientGUI(ClientConsole):
         self.__userWin = userB.getWin()
         self.__borders.append(userB)
 
-        chatB = BorderedWin("Chat", height - 1,
-                        userB.getBorder().getbegyx()[1] - chanB.getBorder().getmaxyx()[1],
-                        0,
-                        chanB.getBorder().getmaxyx()[1])
+        chatB = BorderedWin(
+            "Chat", height - 1,
+            userB.getBorder().getbegyx()[1] - chanB.getBorder().getmaxyx()[1],
+            0, chanB.getBorder().getmaxyx()[1]
+        )
         self.__chatWin = chatB.getWin()
         self.__borders.append(chatB)
 
-        self.__textWin = curses.newwin(1, width, height-1, 0)
+        self.__textWin = curses.newwin(1, width, height - 1, 0)
         self.__textPad = textpad.Textbox(self.__textWin)
 
-        self.__allWins = [
-            self.__screen,
-            self.__textWin,
-        ]
+        self.__allWins = [self.__screen, self.__textWin, ]
         self.__update()
 
     def isGUI(self):
@@ -99,7 +107,7 @@ class ClientGUI(ClientConsole):
 
         self.__update()
 
-    def updateChat(self,):
+    def updateChat(self, ):
         self.__redrawChat()
 
     def __redrawUsers(self):
@@ -124,7 +132,10 @@ class ClientGUI(ClientConsole):
             else:
                 attr = curses.A_DIM
             if all_chans[i]:
-                self.__channelWin.addstr("{chan}\n".format(chan=all_chans[i]), attr)
+                self.__channelWin.addstr(
+                    "{chan}\n".format(chan=all_chans[i]),
+                    attr
+                )
 
     def updateChannels(self):
         self.__redrawChannels()

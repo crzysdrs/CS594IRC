@@ -2,13 +2,13 @@ import jsonschema
 from abc import ABCMeta, abstractmethod
 import signal
 import select
-from Message import IRCMessage
-import Exceptions
-import Schema
+from IRC.Message import IRCMessage
+import IRC.Exceptions
+import IRC.Schema
 import IRC
 import json
 import re
-import socket
+import socket as sockmod
 import logging
 
 MAX_JSON_MSG = 1024
@@ -39,11 +39,13 @@ class SocketBuffer(object):
     def send(self):
         try:
             if not self.__dead():
-                (payload, self.__sendBuffer) = (self.__sendBuffer[:RWSIZE], self.__sendBuffer[RWSIZE:])
+                (payload, self.__sendBuffer) = (
+                    self.__sendBuffer[:RWSIZE], self.__sendBuffer[RWSIZE:]
+                )
                 if len(payload):
                     logging.debug("Sending Message: %s" % repr(payload))
                     self.__socket.send(payload)
-        except socket.error as e:
+        except sockmod.error:
             self.__broken = True
 
     def addMessage(self, msg):
@@ -62,7 +64,11 @@ class SocketBuffer(object):
         return self.__getMsg() != None or self.__dead()
 
     def __getMsg(self):
-        match = re.match("^([^\r\n]{0,1022})\r?\n(.*)$", self.__recvBuffer, flags=re.DOTALL)
+        match = re.match(
+            "^([^\r\n]{0,1022})\r?\n(.*)$",
+            self.__recvBuffer,
+            flags=re.DOTALL
+        )
         return match
 
     def getMsg(self):
@@ -76,12 +82,28 @@ class SocketBuffer(object):
                 return match.group(1)
         else:
             if len(self.__recvBuffer) > 0:
-                ditch = re.match("^[^\r\n]*?\r?\n(.*)$", self.__recvBuffer, flags=re.DOTALL)
+                ditch = re.match(
+                    "^[^\r\n]*?\r?\n(.*)$",
+                    self.__recvBuffer,
+                    flags=re.DOTALL
+                )
                 if not ditch:
-                    logging.warning("Truncating buffer: %s" % repr(self.__recvBuffer))
+                    logging.warning(
+                        "Truncating buffer: {buf}".format(
+                            buf=repr(
+                                self.__recvBuffer
+                            )
+                        )
+                    )
                     self.__recvBuffer = self.__recvBuffer[-MAX_JSON_MSG:]
                 else:
-                    logging.warning("Dropping partial: %s" % repr(self.__recvBuffer))
+                    logging.warning(
+                        "Dropping partial: {buf}".format(
+                            buf=repr(
+                                self.__recvBuffer
+                            )
+                        )
+                    )
                     self.__recvBuffer = ditch.group(1)
 
             if self.__dead():
@@ -100,43 +122,57 @@ class SocketBuffer(object):
                     self.__disconnect = True
                 else:
                     self.__recvBuffer += recvd
-            except socket.error as e:
+            except sockmod.error:
                 self.__broken = True
                 self.__disconnect = True
 
     def getSocket(self):
         return self.__socket
 
-class IRCHandler():
+
+class IRCHandler(object):
     __metaclass__ = ABCMeta
+
     def __init__(self, src, host, port):
+        cmds = {
+            'nick':
+            lambda s, msg: self.receivedNick(s, msg['src'], msg['update']),
+            'quit':
+            lambda s, msg: self.receivedQuit(s, msg['src'], msg['msg']),
+            'squit':
+            lambda s, msg: self.receivedSQuit(s, msg['msg']),
+            'join':
+            lambda s, msg: self.receivedJoin(s, msg['src'], msg['channels']),
+            'leave':
+            lambda s, msg: self.receivedLeave(s, msg['src'], msg['channels'], msg['msg']),
+            'channels':
+            lambda s, msg: self.receivedChannels(s),
+            'users':
+            lambda s, msg: self.receivedUsers(s, msg['channels']),
+            'ping':
+            lambda s, msg: self.receivedPing(s, msg['msg']),
+            'pong':
+            lambda s, msg: self.receivedPong(s, msg['msg']),
+            'msg':
+            lambda s, msg: self.receivedMsg(s, msg['src'], msg['targets'], msg['msg']),
+        } # yapf: disable
+        replies = {
+            'channels':
+            lambda s, msg: self.receivedChannelsReply(s, msg['channels']),
+            'names':
+            lambda s, msg: self.receivedNames(s, msg['channel'], msg['names']),
+        } # yapf: disable
+        errors = {
+            'error':
+            lambda s, msg: self.receivedError(s, msg['error'], msg['msg'])
+        } # yapf: disable
         self._ircmsg = IRCMessage(src)
         self.__running = True
         self.__timeout = 2
         self.__socketBuffers = {}
         self.__host = host
         self.__port = port
-        self.__handlers = {
-            'cmd':{
-                'nick'     : lambda s, msg: self.receivedNick(s, msg['src'], msg['update']),
-                'quit'     : lambda s, msg: self.receivedQuit(s, msg['src'], msg['msg']),
-                'squit'    : lambda s, msg: self.receivedSQuit(s, msg['msg']),
-                'join'     : lambda s, msg: self.receivedJoin(s, msg['src'], msg['channels']),
-                'leave'    : lambda s, msg: self.receivedLeave(s, msg['src'], msg['channels'], msg['msg']),
-                'channels' : lambda s, msg: self.receivedChannels(s),
-                'users'    : lambda s, msg: self.receivedUsers(s, msg['channels']),
-                'ping'     : lambda s, msg: self.receivedPing(s, msg['msg']),
-                'pong'     : lambda s, msg: self.receivedPong(s, msg['msg']),
-                'msg'      : lambda s, msg: self.receivedMsg(s, msg['src'], msg['targets'], msg['msg']),
-            },
-            'reply':{
-                'channels' : lambda s, msg: self.receivedChannelsReply(s, msg['channels']),
-                'names'    : lambda s, msg: self.receivedNames(s, msg['channel'], msg['names']),
-            },
-            'error':{
-                'error' : lambda s, msg: self.receivedError(s, msg['error'], msg['msg'])
-            }
-        }
+        self.__handlers = {'cmd': cmds, 'reply': replies, 'error': errors, }
         signal.signal(signal.SIGINT, self.receivedSignal)
 
     def getHost(self):
@@ -164,18 +200,21 @@ class IRCHandler():
                 return s.getSocket()
             else:
                 return s
+
         logging.info("RUN")
         try:
             while self.__running:
                 try:
                     inputs = self.getInputSocketList()
                     outputs = self.getOutputSocketList()
-                    sockets = {maybeSocket(k) : k for k in inputs + outputs}
-                    logging.debug("Running Select %d %d Timeout %f" % (len(inputs), len(outputs), self.__timeout))
+                    sockets = {maybeSocket(k): k for k in inputs + outputs}
+                    logging.debug(
+                        "Running Select %d %d Timeout %f" %
+                        (len(inputs), len(outputs), self.__timeout)
+                    )
                     inputready, outputready, exceptready = select.select(
                         map(lambda x: maybeSocket(x), inputs),
-                        map(lambda x: maybeSocket(x), outputs),
-                        [],
+                        map(lambda x: maybeSocket(x), outputs), [],
                         self.__timeout
                     )
                     for s in inputready:
@@ -184,12 +223,12 @@ class IRCHandler():
                         sockets[s].send()
                     for s in exceptready:
                         self.socketExceptReady(sockets[s])
-                except Exceptions.InvalidIRCMessage as e:
+                except IRC.Exceptions.InvalidIRCMessage as e:
                     self.sentInvalid(e.socket, e.msg)
 
                 self.timeStep()
         except select.error as e:
-            if e[0] == 4: #interrupted system call
+            if e[0] == 4:  #interrupted system call
                 pass
             else:
                 raise e
@@ -203,25 +242,27 @@ class IRCHandler():
 
     def sendMsg(self, socket, msg):
         try:
-            jsonschema.validate(msg, IRC.Schema.Defn)
+            jsonschema.validate(msg, IRC.Schema.DEFN)
             jmsg = json.dumps(msg, separators=(',', ':')) + "\r\n"
             if len(jmsg) > 1024:
-                raise Exceptions.InvalidIRCMessage(socket, "JSON IRC Message Too Long")
+                raise IRC.Exceptions.InvalidIRCMessage(
+                    socket, "JSON IRC Message Too Long"
+                )
         except jsonschema.exceptions.ValidationError:
-            raise Exceptions.InvalidIRCMessage(socket, msg)
+            raise IRC.Exceptions.InvalidIRCMessage(socket, msg)
         else:
             socket.addMessage(jmsg)
 
     def processIRCMsg(self, socket, msg):
         try:
             jmsg = json.loads(msg)
-        except ValueError as e:
+        except ValueError:
             self.receivedInvalid(socket, msg)
             return
 
         try:
-            jsonschema.validate(jmsg, IRC.Schema.Defn)
-        except jsonschema.exceptions.ValidationError as e:
+            jsonschema.validate(jmsg, IRC.Schema.DEFN)
+        except jsonschema.exceptions.ValidationError:
             self.receivedInvalid(socket, msg)
             return
 
@@ -233,7 +274,6 @@ class IRCHandler():
             self.__handlers['error']['error'](socket, jmsg)
         else:
             raise BaseException("Unhandled Message Type")
-            self.receivedInvalid(socket, msg) #how did we get here?
 
     def receiveMsg(self, socket):
         socket.recv()
@@ -241,7 +281,7 @@ class IRCHandler():
         while socket.hasMsg():
             msg = socket.getMsg()
             if msg == None:
-                return # This means we don't have a complete message in the buffer
+                return  # Incomplete buffer msg
             elif msg == '':
                 self.connectionDrop(socket)
                 return
@@ -333,7 +373,7 @@ class IRCHandler():
         pass
 
     @abstractmethod
-    def receivedSignal(self, signal, frame):
+    def receivedSignal(self, sig, frame):
         pass
 
     @abstractmethod
