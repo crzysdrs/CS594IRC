@@ -1,0 +1,47 @@
+#!/usr/bin/env python
+from IRC.Client import IRCClient
+import argparse
+import io
+import tempfile
+import logging
+from mathjspy import MathJS
+
+class MathBot(IRCClient):
+    def __init__(self, hostname, port, cmds=100):
+        """ Initialize the IRC Client """
+        self.__commands = cmds
+        super(MathBot, self).__init__(hostname, port)
+        self.setTimeout(0.1)
+        self.__mjs = MathJS()
+
+    def run(self):
+        self.inputCmd("/nick mathbot\n")
+        super(MathBot, self).run(self)
+
+    def receivedMsg(self, socket, src, targets, msg):
+        if self.getNick() in targets:
+            try:
+                logging.info("Received math expression {m}".format(m=msg))
+                result = self.__mjs.eval(msg.encode('ascii', 'ignore'))
+            except AttributeError:
+                result = "Invalid Math Expression (may contain undefined values)"
+            self.inputCmd("/msg {t} {msg}\n".format(t=src, msg=result))
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Math Bot")
+    parser.add_argument('--hostname', help="Hostname", default="localhost")
+    parser.add_argument('--port', type=int, help="Port", default=50000)
+    parser.add_argument('--log', default=None)
+
+    args = parser.parse_args()
+
+    if args.log != None:
+        logging.basicConfig(
+            filename=args.log,
+            filemode='w',
+            level=logging.DEBUG
+        )
+
+    client = MathBot(args.hostname, args.port)
+    if client.connect():
+        client.run()
