@@ -218,15 +218,13 @@ def clientIgnore(some_func):
     return inner
 
 class IRCClient(IRC.Handler.IRCHandler):
-    def __init__(self, hostname, port, userinput=sys.stdin):
+    def __init__(self, host, port, userinput=sys.stdin):
         self.__nick = "NEWUSER"
-        super(IRCClient, self).__init__(self.__nick)
+        super(IRCClient, self).__init__(self.__nick, host, port)
         self.__chats = defaultdict(list)
         self.__maxChat = 100
         self.__cmdProc = CommandProcessor()
-        self.__server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.__server.connect((hostname, port))
-        self.__server = SocketBuffer(self.__server)
+        self.__server = None
         self.__currentChannel = None
         self.__channels = defaultdict(list)
         self.__input = userinput
@@ -234,6 +232,26 @@ class IRCClient(IRC.Handler.IRCHandler):
         self.__tempNames = []
         self.__joined = []
         self.__tempChannels = []
+
+    def connect(self):
+        try:
+            logging.info("Attempting to start client.")
+            self.__server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.__server.connect((self.getHost(), self.getPort()))
+            self.__server = SocketBuffer(self.__server)
+            logging.info("Client Connected to server.")
+            return True
+        except socket.error as e:
+            if e.errno == 111:
+                logging.critical(
+                    "Can't connect to {host}:{port}. Is the server running?".format(
+                        host=self.getHost(),
+                        port=self.getPort()
+                    )
+                )
+                return False
+            else:
+                raise e
 
     def getJoined(self):
         return self.__joined
@@ -465,12 +483,14 @@ def main():
         logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
 
     client = IRCClient(args.hostname, args.port)
-    if args.gui:
-        #keep the client running even if the GUI needs to redraw
-        while client.isRunning():
-            curses.wrapper(client.guirun)
-    else:
-        client.run()
+    if client.connect():
+        if args.gui:
+            #keep the client running even if the GUI needs to redraw
+            while client.isRunning():
+                curses.wrapper(client.guirun)
+        else:
+            client.run()
+
 
 if __name__ == "__main__":
     main()

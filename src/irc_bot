@@ -6,6 +6,7 @@ import tempfile
 import time
 import random
 import logging
+import socket
 
 cmds = [
     "/join {channel}",
@@ -82,4 +83,5 @@ if __name__ == "__main__":
         logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
 
     client = IRCBot(args.hostname, args.port)
-    client.run()
+    if client.connect():
+        client.run()

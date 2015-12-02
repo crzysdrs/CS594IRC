@@ -111,19 +111,38 @@ SPECIALNAMES = [SERVERNAME, NEWUSERNAME]
 
 class IRCServer(IRC.Handler.IRCHandler):
     def __init__(self, host, port):
-        super(IRCServer, self).__init__(SERVERNAME)
-        backlog = 5
+        super(IRCServer, self).__init__(SERVERNAME, host, port)
+
         logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
         self.__size = 1024
-        self.__server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.__server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.__server.bind((host,port))
-        self.__server.listen(backlog)
-        self.__server = SocketBuffer(self.__server, misc=None)
         self.__rooms = []
         self.__users = []
         self.__running = False
         self.__last_ping = 0
+        self.__server = None
+
+    def connect(self):
+        try:
+            logging.info("Attempting to start server")
+            backlog = 5
+            self.__server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.__server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.__server.bind((self.getHost(),self.getPort()))
+            self.__server.listen(backlog)
+            self.__server = SocketBuffer(self.__server, misc=None)
+            logging.info("Server listening.")
+            return True
+        except socket.error as e:
+            if e.errno == 98:
+                logging.critical(
+                    "Socket Address {host}:{port} already in use. Server already running?".format(
+                        host=self.getHost(),
+                        port=self.getPort()
+                    )
+                )
+                return False
+            else:
+                raise e
 
     def findCreateChannel(self, roomName):
         channel = self.findChannelByName(roomName)
@@ -379,4 +398,5 @@ if __name__ == "__main__":
         logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
 
     server = IRCServer(args.hostname, args.port)
-    server.run()
+    if server.connect():
+        server.run()

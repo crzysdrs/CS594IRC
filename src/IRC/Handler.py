@@ -109,11 +109,13 @@ class SocketBuffer(object):
 
 class IRCHandler():
     __metaclass__ = ABCMeta
-    def __init__(self, src):
+    def __init__(self, src, host, port):
         self._ircmsg = IRCMessage(src)
         self.__running = True
         self.__timeout = 2
         self.__socketBuffers = {}
+        self.__host = host
+        self.__port = port
         self.__handlers = {
             'cmd':{
                 'nick'     : lambda s, msg: self.receivedNick(s, msg['src'], msg['update']),
@@ -136,6 +138,16 @@ class IRCHandler():
             }
         }
         signal.signal(signal.SIGINT, self.receivedSignal)
+
+    def getHost(self):
+        return self.__host
+
+    def getPort(self):
+        return self.__port
+
+    @abstractmethod
+    def connect(self):
+        pass
 
     def setTimeout(self, timeout):
         self.__timeout = timeout
