@@ -12,6 +12,10 @@ import json
 import jsonschema
 import IRC
 from IRC.Handler import SocketBuffer
+from  more_itertools import unique_everseen
+
+def unique(items):
+    return list(unique_everseen(items))
 
 class IRCUser(object):
     def __init__(self, socket, address):
@@ -232,6 +236,7 @@ class IRCServer(IRC.Handler.IRCHandler):
             return
 
         sockets = self.socketTargets(targets)
+        sockets = unique(sockets)
         self.sendMsgToSockets(sockets, msg)
 
     def sendMsgToSockets(self, sockets, msg):

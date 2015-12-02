@@ -94,6 +94,7 @@ class Command:
 class CommandProcessor:
     CHANNEL_LIST = "^({channel},)*{channel}$".format(channel=IRC.Schema.Channel)
     NICK_LIST = "^({nick},)*{nick}$".format(nick=IRC.Schema.Nick)
+    CHANNELNICK_LIST = "^({nick}|{channel},)*({nick}|{channel})$".format(nick=IRC.Schema.Nick,channel=IRC.Schema.Channel)
     def __init__(self):
         self.__cmds = [
             Command('join',
@@ -131,7 +132,7 @@ class CommandProcessor:
             Command('msg',
                     self.__msgCmd,
                     args=[
-                        CmdArg(self.NICK_LIST, "Invalid Nickname List")
+                        CmdArg(self.CHANNELNICK_LIST, "Invalid Channel or Nickname List")
                     ],
                     extra=True
             ),
@@ -339,10 +340,13 @@ class IRCClient(IRC.Handler.IRCHandler):
                 v.remove(src)
 
         if src == self.__nick:
+            notify_chans.append(None)
+
+        self.updateChat("*** {src} quit ({msg})".format(src=src, msg=msg), notify_chans)
+        self.__gui.updateUsers()
+
+        if src == self.__nick:
             self.stop()
-        else:
-            self.updateChat("*** {src} quit ({msg})".format(src=src, msg=msg), notify_chans)
-            self.__gui.updateUsers()
 
     def receivedSQuit(self, socket, msg):
         pass
@@ -388,10 +392,10 @@ class IRCClient(IRC.Handler.IRCHandler):
 
     def receivedMsg(self, socket, src, targets, msg):
         channels = filter(lambda c : c in self.__channels, targets)
-        if len(channels) > 0:
-            self.updateChat("{src}: {msg}".format(src=src, msg=msg), channels)
-        elif self.__nick in targets:
+        if self.__nick in targets:
             self.notify("*** {src}: {msg}".format(src=src, msg=msg))
+        elif len(channels) > 0:
+            self.updateChat("{src}: {msg}".format(src=src, msg=msg), channels)
 
     def receivedPing(self, socket, msg):
         self.sendMsg(socket, self._ircmsg.cmdPong(msg))
