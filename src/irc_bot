@@ -9,10 +9,15 @@ import logging
 
 cmds = [
     "/join {channel}",
+    "/join {channel},{channel2}"
     "/migrate {channel}",
     "/msg {user} {message}",
+    "/msg {channel} {message}",
+    "/msg {channel} {message}",
+    "/msg {user},{channel} {message}",
     "{message}",
     "/leave {channel}",
+    "/leave {channel},{channel2}",
     "/leave {channel} {message}",
     "/users {channel}",
     "/nick {newnick}",
@@ -56,6 +61,7 @@ class IRCBot(IRCClient):
                 self.__commands -= 1
                 cmd = random.choice(cmds).format(
                     channel=random.choice(channels),
+                    channel2=random.choice(channels),
                     user=random.choice(nicks),
                     message=random.choice(msgs),
                     newnick=random.choice(nicks)
