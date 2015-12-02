@@ -350,6 +350,9 @@ class IRCClient(IRC.Handler.IRCHandler):
         self.__gui = ClientGUI(client=self, screen=screen)
         self.__tempNames = []
 
+    def setInput(self, newinput):
+        self.__input = newinput
+
     def getUserInput(self):
         return self.__input.readline()
 
@@ -372,16 +375,19 @@ class IRCClient(IRC.Handler.IRCHandler):
     def serverSocket(self):
         return self.__server
 
+    def inputCmd(self, line):
+        try:
+            cmd = self.__cmdProc.processCmd(line)
+            if cmd:
+                cmd.execute(self)
+        except CommandParseError as e:
+            self.notify("Error Encountered Parsing Command: %s" % (e))
+
     def socketInputReady(self, socket):
         if socket == self.__input:
-            try:
-                line = self.__gui.keypress()
-                if line and len(line) > 0:
-                    cmd = self.__cmdProc.processCmd(line)
-                    if cmd:
-                        cmd.execute(self)
-            except CommandParseError as e:
-                self.notify("Error Encountered Parsing Command: %s" % (e))
+            line = self.__gui.keypress()
+            if line and len(line) > 0:
+                self.inputcmd(line)
         else:
             self.receiveMsg(socket)
 

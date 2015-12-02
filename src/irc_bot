@@ -23,22 +23,33 @@ cmds = [
 channels=["#test", "#bots", "#ignore"]
 nicks=["bot1", "bot2", "bot3", "bot4", "bot5"]
 msgs=["This is a test", "I am a bot", "Are you a bot?"]
-
+import StringIO
+import sys
 class IRCBot(IRCClient):
     def __init__(self, hostname, port, cmds=100):
-        self.__botinput = tempfile.TemporaryFile()
-        self.__botinput.seek(0)
         self.__lasttime = 0
         self.__commands = cmds
-
-        super(IRCBot, self).__init__(hostname, port, userinput=self.__botinput)
+        super(IRCBot, self).__init__(hostname, port)
 
     def timeStep(self):
         if time.time() - self.__lasttime > 1:
-            pos = self.__botinput.tell()
-            self.__botinput.seek(0, 2) #go to end of file
             if self.__commands == 0:
                 cmd = "/quit Bot Leaving (Command Limit Hit)"
+            elif random.random() < 0.1:
+                #DON'T EVER DO THIS
+                #inserting malformed messages
+                self.serverSocket().addMessage(
+                    random.choice(
+                        [
+                            "\r\nasduib\r\n",
+                            "\r\nflkajsdf\r\na ajskdfjalsdjf\r\n",
+                            "\r\njaklsdf\r\n",
+                            "\r\n{}{}{}{}{\r\n",
+                            "\r\n\r\n\r\n",
+                        ]
+                    )
+                )
+                cmd = ""
             else:
                 self.__commands -= 1
                 cmd = random.choice(cmds).format(
@@ -47,9 +58,7 @@ class IRCBot(IRCClient):
                     message=random.choice(msgs),
                     newnick=random.choice(nicks)
                 )
-            self.__botinput.write(cmd + "\n")
-            self.__botinput.seek(pos) #restore position
-            self.__lasttime = time.time()
+            self.inputCmd(cmd)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="IRC Client")

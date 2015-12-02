@@ -12,7 +12,7 @@ import socket
 import logging
 
 MAX_JSON_MSG = 1024
-RWSIZE = 512 # select.BUF_SIZE
+RWSIZE = select.PIPE_BUF
 
 class SocketBuffer(object):
     def __init__(self, socket, misc=None):
@@ -62,15 +62,18 @@ class SocketBuffer(object):
         return self.__getMsg() != None or self.__dead()
 
     def __getMsg(self):
-        match = re.match("^([^\r\n]{1,1022})\r?\n(.*)$", self.__recvBuffer, flags=re.DOTALL)
+        match = re.match("^([^\r\n]{0,1022})\r?\n(.*)$", self.__recvBuffer, flags=re.DOTALL)
         return match
 
     def getMsg(self):
         match = self.__getMsg()
         if match:
             self.__recvBuffer = match.group(2)
-            logging.debug("Passing up message: %s" % repr(match.group(1)))
-            return match.group(1)
+            if len(match.group(1)) == 0:
+                return self.getMsg()
+            else:
+                logging.debug("Passing up message: %s" % repr(match.group(1)))
+                return match.group(1)
         else:
             if len(self.__recvBuffer) > 0:
                 ditch = re.match("^[^\r\n]*?\r?\n(.*)$", self.__recvBuffer, flags=re.DOTALL)
@@ -215,8 +218,10 @@ class IRCHandler():
     def receiveMsg(self, socket):
         socket.recv()
         processed = False
+        logging.debug("Has Message %s" % socket.hasMsg())
         while socket.hasMsg():
             msg = socket.getMsg()
+            logging.debug("Has Message %s" % socket.hasMsg())
             if msg == None:
                 return # This means we don't have a complete message in the buffer
             elif msg == '':

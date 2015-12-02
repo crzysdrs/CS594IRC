@@ -140,7 +140,7 @@ class IRCServer(IRC.Handler.IRCHandler):
     def endUser(self, user, msg):
         userIRC = IRC.Message.IRCMessage(user.getName())
         if user in self.__users:
-            self.sendMsg(user.getSocketBuffer(), userIRC.cmdQuit("Goodbye"))
+            self.sendMsg(user.getSocketBuffer(), userIRC.cmdQuit(msg))
 
             channels = list(user.getChannels())
             user.leave(self)
@@ -155,7 +155,7 @@ class IRCServer(IRC.Handler.IRCHandler):
             #logging.info("Verifying Pongs/Sending Pings")
             for client in self.__users:
                 if client.unansweredPing():
-                      self.endUser(client, 'High Ping')
+                      self.endUser(client, 'No ping response')
                 else:
                       client.sendPing(self, str(time.time()))
 
