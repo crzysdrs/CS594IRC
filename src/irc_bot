@@ -23,16 +23,17 @@ cmds = [
 channels=["#test", "#bots", "#ignore"]
 nicks=["bot1", "bot2", "bot3", "bot4", "bot5"]
 msgs=["This is a test", "I am a bot", "Are you a bot?"]
-import StringIO
-import sys
+
 class IRCBot(IRCClient):
     def __init__(self, hostname, port, cmds=100):
         self.__lasttime = 0
         self.__commands = cmds
         super(IRCBot, self).__init__(hostname, port)
+        self.setTimeout(0.1)
 
     def timeStep(self):
-        if time.time() - self.__lasttime > 1:
+        delta = time.time() - self.__lasttime
+        if delta > 0.1:
             if self.__commands == 0:
                 cmd = "/quit Bot Leaving (Command Limit Hit)"
             elif random.random() < 0.1:
@@ -60,6 +61,7 @@ class IRCBot(IRCClient):
                     newnick=random.choice(nicks)
                 )
             self.inputCmd(cmd)
+            self.__lasttime = time.time()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="IRC Client")

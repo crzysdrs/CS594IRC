@@ -137,6 +137,9 @@ class IRCHandler():
         }
         signal.signal(signal.SIGINT, self.receivedSignal)
 
+    def setTimeout(self, timeout):
+        self.__timeout = timeout
+
     def getIRCMsg(self):
         return self._ircmsg
 
