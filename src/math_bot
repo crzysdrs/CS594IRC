@@ -19,6 +19,7 @@ class MathBot(IRCClient):
         super(MathBot, self).run(self)
 
     def receivedMsg(self, socket, src, targets, msg):
+        super(MathBot, self).receivedMsg(socket, src, targets, msg)
         if self.getNick() in targets:
             try:
                 logging.info("Received math expression {m}".format(m=msg))
