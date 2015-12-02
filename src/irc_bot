@@ -15,6 +15,7 @@ cmds = [
     "/msg {channel} {message}",
     "/msg {channel} {message}",
     "/msg {user},{channel} {message}",
+    "/msg {channel},{user} {message}",
     "{message}",
     "/leave {channel}",
     "/leave {channel},{channel2}",

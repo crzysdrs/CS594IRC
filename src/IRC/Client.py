@@ -94,7 +94,7 @@ class Command:
 class CommandProcessor:
     CHANNEL_LIST = "^({channel},)*{channel}$".format(channel=IRC.Schema.Channel)
     NICK_LIST = "^({nick},)*{nick}$".format(nick=IRC.Schema.Nick)
-    CHANNELNICK_LIST = "^({nick}|{channel},)*({nick}|{channel})$".format(nick=IRC.Schema.Nick,channel=IRC.Schema.Channel)
+    CHANNELNICK_LIST = "^(({nick}|{channel}),)*({nick}|{channel})$".format(nick=IRC.Schema.Nick,channel=IRC.Schema.Channel)
     def __init__(self):
         self.__cmds = [
             Command('join',
