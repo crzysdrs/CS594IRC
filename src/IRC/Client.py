@@ -50,12 +50,13 @@ class CommandParseUnimplemented(CommandParseError):
 
 class CmdArg(object):
     """ An argument representation for a given command"""
-    def __init__(self, regex, error):
+    def __init__(self, title, regex, error):
         """ Create a Command Argument
 
         Provide a regex to match argument and an error
         if it fails
         """
+        self.__title = title
         self.__regex = regex
         self.__error = error
 
@@ -67,6 +68,9 @@ class CmdArg(object):
         """Get the error of the command"""
         return self.__error
 
+    def title(self):
+        """Get the title of arg"""
+        return self.__title
 
 class CommandResult(object):
     """ A Processed set of arguments to a commmand"""
@@ -112,6 +116,17 @@ class Command(object):
         p += r'\r?\n?$'
         return p
 
+    def getHelp(self):
+        helpstr = "/{name}".format(name=self.__name)
+
+        for a in self.__args:
+            helpstr += " {title}".format(title=a.title())
+
+        if self.__extra:
+            helpstr += " Message"
+
+        return helpstr
+
     def process(self, line):
         """ Process an input line and return a command result
 
@@ -155,13 +170,13 @@ class CommandProcessor(object):
                 'join',
                 self.__joinCmd,
                 args=[
-                    CmdArg(self.CHANNEL_LIST, "Invalid Channel List")
+                    CmdArg("ChannelList", self.CHANNEL_LIST, "Invalid Channel List")
                 ]
             ), Command(
                 'leave',
                 self.__leaveCmd,
                 args=[
-                    CmdArg(self.CHANNEL_LIST, "Invalid Channel List")
+                    CmdArg("ChannelList", self.CHANNEL_LIST, "Invalid Channel List")
                 ],
                 extra=True
             ), Command(
@@ -171,13 +186,14 @@ class CommandProcessor(object):
                 'users',
                 self.__usersCmd,
                 args=[
-                    CmdArg(self.CHANNEL_LIST, "Invalid Channel List")
+                    CmdArg("ChannelList", self.CHANNEL_LIST, "Invalid Channel List")
                 ]
             ), Command(
                 'nick',
                 self.__nickCmd,
                 args=[
                     CmdArg(
+                        "NickName",
                         '^{nick}$'.format(nick=IRC.Schema.NICK),
                         "Invalid NickName"
                     )
@@ -191,6 +207,7 @@ class CommandProcessor(object):
                 self.__msgCmd,
                 args=[
                     CmdArg(
+                        "ChannelOrNickList",
                         self.CHANNELNICK_LIST,
                         "Invalid Channel or Nickname List"
                     )
@@ -204,10 +221,22 @@ class CommandProcessor(object):
                 'migrate',
                 self.__migrateCmd,
                 args=[
-                    CmdArg(IRC.Schema.CHANNEL, "Invalid Channel")
+                    CmdArg("Channel", IRC.Schema.CHANNEL, "Invalid Channel")
                 ]
-            )
+            ), Command(
+                'help',
+                self.__helpCmd
+            ),
         ]
+
+    def __helpCmd(self, client):
+        client.notify("#### HELP COMMANDS ####")
+        for c in self.__cmds:
+            client.notify(
+                "#### {helpmsg}".format(
+                    helpmsg=c.getHelp()
+                )
+            )
 
     def __joinCmd(self, client, channels):
         """ Notify server of request to join channels """

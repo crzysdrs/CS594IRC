@@ -25,6 +25,7 @@ CMDS = [
     "/nick {newnick}",
     "/channels",
     "/invalid cmd",
+    "/help",
 ]
 
 CHANNELS = ["#test", "#bots", "#ignore"]

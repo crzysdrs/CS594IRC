@@ -131,8 +131,10 @@ class ClientGUI(ClientConsole):
         """ Redraw the chat messages window"""
         self.__chatWin.clear()
         chats = self._client.getChats()[self._client.currentChannel()]
-        for i in range(0, min(len(chats), self.__chatWin.getmaxyx()[0])):
-            self.__chatWin.addstr(chats[i] + "\n")
+        count = min(len(chats), self.__chatWin.getmaxyx()[0])
+        shown = chats[-count:]
+        for c in shown:
+            self.__chatWin.addstr(c + "\n")
 
         self.__update()
 
