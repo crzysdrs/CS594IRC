@@ -1,3 +1,11 @@
+"""
+The definitions provided here are intended to be parsed
+by the jsonschema module and used to validate the incoming/
+outgoing messages to the client/server for an IRC client.
+
+For an overview, see the IRC RFC.
+"""
+
 NICK = '[a-zA-Z0-9]{1,10}'
 CHANNEL = '#[a-zA-Z0-9]{1,10}'
 

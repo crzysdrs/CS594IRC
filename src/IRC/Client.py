@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+"""
+An IRC Client Implementation
+
+Provides all the tools to process user input commands
+and handle IRC messages using the IRCHandler.
+"""
 import socket as sockmod
 import sys
 import argparse
@@ -14,51 +20,75 @@ from IRC.GUI import ClientGUI, ClientConsole
 
 
 def unique(items):
+    """ Return list of unique items in list"""
     return list(unique_everseen(items))
 
 
 class CommandParseError(Exception):
+    """ A Command Parser Error"""
     def __init__(self, msg):
+        """ Initialize Exception """
         super(CommandParseError, self).__init__(self)
         self.__msg = msg
 
     def __str__(self):
+        """ String representation of Exception"""
         return self.__msg
 
 
 class CommandParseUnimplemented(CommandParseError):
+    """ An unimplemented Command """
     def __init__(self, msg):
+        """ Initialize Exception """
         super(CommandParseUnimplemented, self).__init__(self)
         self.__msg = msg
 
     def __str__(self):
+        """ String representation of Exception"""
         return "Unimplemented: %s" % (self.__msg)
 
 
 class CmdArg(object):
+    """ An argument representation for a given command"""
     def __init__(self, regex, error):
+        """ Create a Command Argument
+
+        Provide a regex to match argument and an error
+        if it fails
+        """
         self.__regex = regex
         self.__error = error
 
     def pattern(self):
+        """Get the pattern of the command"""
         return self.__regex
 
     def error(self):
+        """Get the error of the command"""
         return self.__error
 
 
 class CommandResult(object):
+    """ A Processed set of arguments to a commmand"""
     def __init__(self, fn, name, args):
+        """ Encapsulate the result of a command process"""
         self.__fn = fn
         self.__name = name
         self.__args = args
 
     def execute(self, client):
+        """Execute the computed command """
         self.__fn(client, *self.__args)
 
 
 class Command(object):
+    """ An IRC user command
+
+    Can detect, process arguments and return a fully formed
+    executable CommandResult
+    """
     def __init__(self, name, cmd, args=None, extra=False):
+        """ Intiailize a Command """
         self.__name = name
         if args:
             self.__args = args
@@ -68,9 +98,11 @@ class Command(object):
         self.__extra = extra
 
     def name(self):
+        """ Get Command Name"""
         return self.__name
 
     def __pattern(self):
+        """ Compute pattern to match command with arguments"""
         p = r"^/" + self.__name
         for a in self.__args:
             p += r'\s+(\S+)'
@@ -81,6 +113,10 @@ class Command(object):
         return p
 
     def process(self, line):
+        """ Process an input line and return a command result
+
+        Possibly throws exception if no command matches.
+        """
         m = re.match(self.__pattern(), line)
         if m:
             compare = map(
@@ -101,6 +137,10 @@ class Command(object):
 
 
 class CommandProcessor(object):
+    """
+    Command Process uses a set of commands and determines which (if
+    any) command was requested and executes it.
+    """
     CHANNEL_LIST = "^({channel},)*{channel}$".format(channel=IRC.Schema.CHANNEL)
     NICK_LIST = "^({nick},)*{nick}$".format(nick=IRC.Schema.NICK)
     CHANNELNICK_LIST = "^(({nick}|{channel}),)*({nick}|{channel})$".format(
@@ -109,6 +149,7 @@ class CommandProcessor(object):
     )
 
     def __init__(self):
+        """ Initialize Set of Commands"""
         self.__cmds = [
             Command(
                 'join',
@@ -169,30 +210,37 @@ class CommandProcessor(object):
         ]
 
     def __joinCmd(self, client, channels):
+        """ Notify server of request to join channels """
         irc_msg = client.getIRCMsg().cmdJoin(unique(channels.split(',')))
         client.sendMsg(client.serverSocket(), irc_msg)
 
     def __leaveCmd(self, client, channels, msg):
+        """ Notify server of request to leave channels"""
         irc_msg = client.getIRCMsg().cmdLeave(unique(channels.split(',')), msg)
         client.sendMsg(client.serverSocket(), irc_msg)
 
     def __channelsCmd(self, client):
+        """ Notify server of request to get channels list"""
         irc_msg = client.getIRCMsg().cmdChannels()
         client.sendMsg(client.serverSocket(), irc_msg)
 
     def __usersCmd(self, client, channels):
+        """ Notify server of request to get list of users in channels"""
         irc_msg = client.getIRCMsg().cmdUsers(unique(channels.split(',')))
         client.sendMsg(client.serverSocket(), irc_msg)
 
     def __nickCmd(self, client, nick):
+        """ Notify server of change in nickname"""
         irc_msg = client.getIRCMsg().cmdNick(nick)
         client.sendMsg(client.serverSocket(), irc_msg)
 
     def __quitCmd(self, client, msg):
+        """ Notify server of request to quit"""
         irc_msg = client.getIRCMsg().cmdQuit(msg)
         client.sendMsg(client.serverSocket(), irc_msg)
 
     def __chanMsgCmd(self, client, msg):
+        """ Send a message to the current channel"""
         if client.currentChannel():
             irc_msg = client.getIRCMsg().cmdMsg(msg, [client.currentChannel()])
             client.sendMsg(client.serverSocket(), irc_msg)
@@ -200,6 +248,7 @@ class CommandProcessor(object):
             client.notify("**** You aren't in a channel (/migrate to one) ****")
 
     def __migrateCmd(self, client, chan):
+        """ Switch client to new channel """
         if chan == client.currentChannel():
             client.notify("*** Already in {chan} ***".format(chan=chan))
         if chan in client.getChannels():
@@ -213,6 +262,7 @@ class CommandProcessor(object):
             )
 
     def __msgCmd(self, client, nicks, msg):
+        """ Notify server of message to send privately """
         client.sendMsg(
             client.serverSocket(), client.getIRCMsg().cmdMsg(
                 msg, unique(nicks.split(','))
@@ -220,12 +270,14 @@ class CommandProcessor(object):
         )
 
     def isCmd(self, line):
+        """ Determine if input is a command """
         if len(line) > 0:
             return line[0] == '/'
         else:
             return False
 
     def processCmd(self, line):
+        """ Process a given input line into a corresponding command"""
         if not self.isCmd(line):
             return CommandResult(self.__chanMsgCmd, 'chanmsg', [line.rstrip()])
 
@@ -245,15 +297,22 @@ class CommandProcessor(object):
 
 
 def clientIgnore(some_func):
+    """ Log the result of an unhandled command"""
     def inner():
-        print "Client received an ignored message."
+        logging.warning("Client received an ignored message.")
         return
 
     return inner
 
 
 class IRCClient(IRC.Handler.IRCHandler):
+    """ The IRC Client
+
+    Takes the base IRCHandler and uses it to produce
+    a fully formed Client for the IRC protocol.
+    """
     def __init__(self, host, port, userinput=sys.stdin):
+        """ Initialize Client"""
         self.__nick = "NEWUSER"
         super(IRCClient, self).__init__(self.__nick, host, port)
         self.__chats = defaultdict(list)
@@ -269,6 +328,7 @@ class IRCClient(IRC.Handler.IRCHandler):
         self.__tempChannels = []
 
     def connect(self):
+        """ Attempt to connect to a given server"""
         try:
             logging.info("Attempting to start client.")
             self.__server = sockmod.socket(sockmod.AF_INET, sockmod.SOCK_STREAM)
@@ -289,12 +349,19 @@ class IRCClient(IRC.Handler.IRCHandler):
                 raise e
 
     def getJoined(self):
+        """ Return list of joined rooms """
         return self.__joined
 
     def getChats(self):
+        """ Return a dictionary of chat messages for rooms"""
         return self.__chats
 
     def updateChat(self, msg, channels=None):
+        """ Update the corresponding chat messages
+
+        Keeps a record of the chat messages in a given channel
+        so that the user can read the transcripts
+        """
         if channels == None:
             self.__chats[self.currentChannel()].append(msg)
         else:
@@ -310,6 +377,7 @@ class IRCClient(IRC.Handler.IRCHandler):
             self.__gui.updateChat()
 
     def guirun(self, screen):
+        """ Runs the client in a GUI mode """
         (height, width) = screen.getmaxyx()
         if height < 10 or width < 50:
             logging.warning("Screen size too small")
@@ -320,31 +388,40 @@ class IRCClient(IRC.Handler.IRCHandler):
             self.run(shutdown=False)
 
     def setInput(self, newinput):
+        """ Sets the input stream for the client"""
         self.__input = newinput
 
     def getUserInput(self):
+        """ Reads from the current input stream a new line"""
         return self.__input.readline()
 
     def getChannels(self):
+        """ Gets the known available channels"""
         return self.__channels
 
     def currentChannel(self):
+        """ Returns users current channel"""
         return self.__currentChannel
 
     def setChannel(self, chan):
+        """ Sets the current channel"""
         self.__currentChannel = chan
         self.__gui.update()
 
     def getInputSocketList(self):
+        """ Returns  the list of input sockets to listen"""
         return [self.__input, self.__server]
 
     def getOutputSocketList(self):
+        """Returns a list of sockets ready to send messages"""
         return filter(lambda s: s.readyToSend(), [self.__server])
 
     def serverSocket(self):
+        """ Returns the current server socket"""
         return self.__server
 
     def inputCmd(self, line):
+        """ Attempts to execute a given user input line"""
         try:
             cmd = self.__cmdProc.processCmd(line)
             if cmd:
@@ -353,6 +430,7 @@ class IRCClient(IRC.Handler.IRCHandler):
             self.notify("Error Encountered Parsing Command: %s" % (e))
 
     def socketInputReady(self, socket):
+        """ Determine what to do with a given socket input"""
         if socket == self.__input:
             line = self.__gui.keypress()
             if line and len(line) > 0:
@@ -361,16 +439,24 @@ class IRCClient(IRC.Handler.IRCHandler):
             self.receiveMsg(socket)
 
     def socketExceptReady(self, socket):
+        """ Notify client of socket exception"""
         pass  #does the client care?
 
     def connectionDrop(self, socket):
+        """ Server Disconnect, shutdown client. """
         if socket == self.__server:
             self.stop()
 
     def notify(self, msg):
+        """ Notify the GUI that there is a new message """
         self.updateChat(msg)
 
     def receivedNick(self, socket, src, newnick):
+        """ Received a nickname.
+
+        If it's for the client, update the nickname.
+        Otherwise update the nickname of the specified clients
+        """
         notify_chans = []
         for (k, v) in self.__channels.iteritems():
             if src in v:
@@ -398,6 +484,11 @@ class IRCClient(IRC.Handler.IRCHandler):
         self.__gui.update()
 
     def receivedQuit(self, socket, src, msg):
+        """ Received a quit command
+
+        If it's for the client, shutdown.
+        If it's for another client, remove them from chats.
+        """
         notify_chans = []
         for (k, v) in self.__channels.iteritems():
             if src in v:
@@ -420,9 +511,15 @@ class IRCClient(IRC.Handler.IRCHandler):
             self.stop()
 
     def receivedSQuit(self, socket, msg):
+        """ Unused server command """
         pass
 
     def receivedJoin(self, socket, src, channels):
+        """ Received join
+
+        If the join is for the user, add them to the channel.
+        If it's for another user, store them in the channel.
+        """
         for c in channels:
             self.__channels[c].append(src)
             self.__joined.append(c)
@@ -443,6 +540,11 @@ class IRCClient(IRC.Handler.IRCHandler):
         self.__gui.update()
 
     def receivedLeave(self, socket, src, channels, msg):
+        """ Received Leave
+
+        If it's for the user, remove from specified channels.
+        If it's for someone else, remove them from channels.
+        """
         delchannels = []
         for (k, v) in self.__channels.iteritems():
             if k in channels:
@@ -468,13 +570,16 @@ class IRCClient(IRC.Handler.IRCHandler):
 
     @clientIgnore
     def receivedChannels(self, socket):
+        """ Client does not receive channels messages"""
         pass
 
     @clientIgnore
     def receivedUsers(self, socket, channels):
+        """ Client does not receive users requests"""
         pass
 
     def receivedMsg(self, socket, src, targets, msg):
+        """ Update the chats with the new message depending on target"""
         channels = filter(lambda c: c in self.__channels, targets)
         if self.__nick in targets:
             self.notify("*** {src}: {msg}".format(src=src, msg=msg))
@@ -482,13 +587,20 @@ class IRCClient(IRC.Handler.IRCHandler):
             self.updateChat("{src}: {msg}".format(src=src, msg=msg), channels)
 
     def receivedPing(self, socket, msg):
+        """ Reply to ping with pong """
         self.sendMsg(socket, self._ircmsg.cmdPong(msg))
 
     @clientIgnore
     def receivedPong(self, socket, msg):
+        """ Client does not recieve pongs"""
         pass
 
     def receivedNames(self, socket, channel, names):
+        """ Receive the names list
+
+        If the user is in GUI mode, update the users window.
+        Otherwise print out the user information
+        """
         if self.__gui.isGUI():
             self.__tempNames.extend(names)
             if len(names) == 0:
@@ -504,6 +616,11 @@ class IRCClient(IRC.Handler.IRCHandler):
             )
 
     def receivedChannelsReply(self, socket, channels):
+        """ Receive the channels list
+
+        If the user is in gui mode update the channels window.
+        Otherwise print out the channels list.
+        """
         if self.__gui.isGUI():
             self.__tempChannels.extend(channels)
 
@@ -522,6 +639,7 @@ class IRCClient(IRC.Handler.IRCHandler):
             self.notify("CHANNELS: {chans}".format(chans=" ".join(channels)))
 
     def receivedError(self, socket, error_name, error_msg):
+        """ Notify user of error"""
         self.notify(
             "ERROR: {error_t}: {error_m}".format(
                 error_t=error_name,
@@ -530,9 +648,11 @@ class IRCClient(IRC.Handler.IRCHandler):
         )
 
     def receivedInvalid(self, socket, msg):
+        """ Notify user of invalid server message"""
         self.notify("BAD SERVER MSG: {msg}".format(msg=msg))
 
     def receivedSignal(self, sig, frame):
+        """ Handle signal gradefully """
         if sig == signal.SIGINT:
             msg = "Client interrupted with Ctrl-C."
             logging.info(msg)
@@ -540,14 +660,17 @@ class IRCClient(IRC.Handler.IRCHandler):
             self.stop()
 
     def sentInvalid(self, socket, msg):
+        """ Notify user that invalid message was sent"""
         self.notify("CLIENT ERROR: {msg}".format(msg=msg))
 
     def shutdown(self):
+        """ Shutdown client"""
         self.notify("*** Shutting Down Client ***")
         self.__server.close()
 
 
 def main():
+    """ Main entry point for IRC Client"""
     parser = argparse.ArgumentParser(description="IRC Client")
     parser.add_argument('--hostname', help="Hostname", default="localhost")
     parser.add_argument('--port', type=int, help="Port", default=50000)

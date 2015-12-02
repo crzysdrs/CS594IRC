@@ -1,3 +1,10 @@
+"""
+The IRC.Handler is a base class for an IRC client or
+server. It manages the low level details such as the
+socket connections and the data handling with those
+sockets. It additionally provides high level knowledge
+of incoming/outgoing commands.
+"""
 import jsonschema
 from abc import ABCMeta, abstractmethod
 import signal
@@ -14,8 +21,15 @@ import logging
 MAX_JSON_MSG = 1024
 RWSIZE = select.PIPE_BUF
 
+
 class SocketBuffer(object):
+    """
+    The SocketBuffer provides a wrapper around a socket
+    so that messages can be buffered before being sent/
+    recieved. It also handles cases like socket disconnection.
+    """
     def __init__(self, socket, misc=None):
+        """ Initialize Socket Buffer"""
         self.__sendBuffer = ""
         self.__recvBuffer = ""
         self.__socket = socket
@@ -25,18 +39,23 @@ class SocketBuffer(object):
         self.__misc = misc
 
     def getMisc(self):
+        """ Return user provided data for socket"""
         return self.__misc
 
     def accept(self):
+        """ Accept connections on this buffer"""
         return self.__socket.accept()
 
     def __dead(self):
+        """ Socket has been killed in some form"""
         return self.__disconnect or self.__broken or self.__closed
 
     def readyToSend(self):
+        """ Any messages waiting to send"""
         return not self.__dead() and len(self.__sendBuffer) > 0
 
     def send(self):
+        """ Attempt to send the buffer size amount of messages"""
         try:
             if not self.__dead():
                 (payload, self.__sendBuffer) = (
@@ -49,10 +68,12 @@ class SocketBuffer(object):
             self.__broken = True
 
     def addMessage(self, msg):
+        """ Add a given message to the message queue"""
         if not self.__dead():
             self.__sendBuffer += msg
 
     def close(self):
+        """ Close the socket"""
         if not self.__dead():
             while len(self.__sendBuffer):
                 self.send()
@@ -61,9 +82,11 @@ class SocketBuffer(object):
         self.__closed = True
 
     def hasMsg(self):
+        """ Determin if message is in input queue"""
         return self.__getMsg() != None or self.__dead()
 
     def __getMsg(self):
+        """ Find the first message in the input queue"""
         match = re.match(
             "^([^\r\n]{0,1022})\r?\n(.*)$",
             self.__recvBuffer,
@@ -72,6 +95,7 @@ class SocketBuffer(object):
         return match
 
     def getMsg(self):
+        """ Return next available message in recv queue (including disconnect) """
         match = self.__getMsg()
         if match:
             self.__recvBuffer = match.group(2)
@@ -112,6 +136,7 @@ class SocketBuffer(object):
                 return None
 
     def recv(self):
+        """ Recv data from socket when available """
         if self.__disconnect or self.__broken:
             return
         else:
@@ -131,9 +156,20 @@ class SocketBuffer(object):
 
 
 class IRCHandler(object):
+    """
+    The IRCHandler provides an abstraction level layer
+    around the low level representation of the sockets
+    to provide high level knowledge of incoming/outgoing
+    messages
+
+    A handler can use this as a base class and get much
+    of the benefits for an easy implementation of client
+    or server.
+    """
     __metaclass__ = ABCMeta
 
     def __init__(self, src, host, port):
+        """ Initailize all handlers for various message types"""
         cmds = {
             'nick':
             lambda s, msg: self.receivedNick(s, msg['src'], msg['update']),
@@ -176,25 +212,32 @@ class IRCHandler(object):
         signal.signal(signal.SIGINT, self.receivedSignal)
 
     def getHost(self):
+        """ Get the hostname"""
         return self.__host
 
     def getPort(self):
+        """ Get the port information"""
         return self.__port
 
     @abstractmethod
     def connect(self):
+        """ Connect to target"""
         pass
 
     def setTimeout(self, timeout):
+        """ Update the desired timeout"""
         self.__timeout = timeout
 
     def getIRCMsg(self):
+        """ Get the IRC Message Sender"""
         return self._ircmsg
 
     def isRunning(self):
+        """ Is Handler running?"""
         return self.__running
 
     def run(self, shutdown=True):
+        """ Run the handler and process messages"""
         def maybeSocket(s):
             if type(s) is SocketBuffer:
                 return s.getSocket()
@@ -241,6 +284,7 @@ class IRCHandler(object):
                 self.shutdown()
 
     def sendMsg(self, socket, msg):
+        """ Attempt to send a message on the socket buffer"""
         try:
             jsonschema.validate(msg, IRC.Schema.DEFN)
             jmsg = json.dumps(msg, separators=(',', ':')) + "\r\n"
@@ -254,6 +298,7 @@ class IRCHandler(object):
             socket.addMessage(jmsg)
 
     def processIRCMsg(self, socket, msg):
+        """ Processes a byte string into a message and calls handler"""
         try:
             jmsg = json.loads(msg)
         except ValueError:
@@ -276,6 +321,8 @@ class IRCHandler(object):
             raise BaseException("Unhandled Message Type")
 
     def receiveMsg(self, socket):
+        """ Receives data from socket and handles all
+        available messages"""
         socket.recv()
         processed = False
         while socket.hasMsg():
@@ -291,95 +338,119 @@ class IRCHandler(object):
         return processed
 
     def stop(self):
+        """ Stops the handler"""
         self.__running = False
 
     def timeStep(self):
+        """ Timeout has occured for select """
         pass
 
     @abstractmethod
     def getInputSocketList(self):
+        """Return sockets ready to read"""
         pass
 
     @abstractmethod
     def getOutputSocketList(self):
+        """ Return list of sockets ready to send messages"""
         pass
 
     @abstractmethod
     def socketInputReady(self, socket):
+        """Notify handler of new input"""
         pass
 
     @abstractmethod
     def socketExceptReady(self, socket):
+        """Notify handler of socket exception"""
         pass
 
     @abstractmethod
     def connectionDrop(self, socket):
+        """ Notify handler of dropped connection"""
         pass
 
     @abstractmethod
     def receivedNick(self, socket, src, newnick):
+        """ Notify received Nick """
         pass
 
     @abstractmethod
     def receivedQuit(self, socket, src, msg):
+        """ Notify received Quit """
         pass
 
     @abstractmethod
     def receivedSQuit(self, socket, msg):
+        """ Notify received SQuit """
         pass
 
     @abstractmethod
     def receivedJoin(self, socket, src, channels):
+        """ Notify received Join """
         pass
 
     @abstractmethod
     def receivedLeave(self, socket, src, channels, msg):
+        """ Notify received Leave """
         pass
 
     @abstractmethod
     def receivedChannels(self, socket):
+        """ Notify received Channel """
         pass
 
     @abstractmethod
     def receivedUsers(self, socket, channels):
+        """ Notify received Users """
         pass
 
     @abstractmethod
     def receivedMsg(self, socket, src, targets, msg):
+        """ Notify received Message"""
         pass
 
     @abstractmethod
     def receivedPing(self, socket, msg):
+        """ Notify received Ping"""
         pass
 
     @abstractmethod
     def receivedPong(self, socket, msg):
+        """ Notify received Pong"""
         pass
 
     @abstractmethod
     def receivedNames(self, socket, channel, names):
+        """ Notify received Names"""
         pass
 
     @abstractmethod
     def receivedChannelsReply(self, socket, channels):
+        """ Notify received channels reply"""
         pass
 
     @abstractmethod
     def receivedError(self, socket, error_name, error_msg):
+        """ Notify received errro"""
         pass
 
     @abstractmethod
     def receivedInvalid(self, socket, msg):
+        """ Notify received invalid message"""
         pass
 
     @abstractmethod
     def receivedSignal(self, sig, frame):
+        """ Notify received signal"""
         pass
 
     @abstractmethod
     def sentInvalid(self, socket, msg):
+        """ Notify attempted send of invalid message"""
         pass
 
     @abstractmethod
     def shutdown(self):
+        """ Shutdown handler"""
         pass
