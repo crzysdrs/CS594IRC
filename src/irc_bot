@@ -46,6 +46,7 @@ class IRCBot(IRCClient):
                             "\r\njaklsdf\r\n",
                             "\r\n{}{}{}{}{\r\n",
                             "\r\n\r\n\r\n",
+                            "\r\n{\"invalid\":\"schema\"}\r\n",
                         ]
                     )
                 )
