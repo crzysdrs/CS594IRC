@@ -218,10 +218,8 @@ class IRCHandler():
     def receiveMsg(self, socket):
         socket.recv()
         processed = False
-        logging.debug("Has Message %s" % socket.hasMsg())
         while socket.hasMsg():
             msg = socket.getMsg()
-            logging.debug("Has Message %s" % socket.hasMsg())
             if msg == None:
                 return # This means we don't have a complete message in the buffer
             elif msg == '':

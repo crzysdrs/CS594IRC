@@ -301,7 +301,6 @@ class IRCServer(IRC.Handler.IRCHandler):
         pass #should not receive pings from users
 
     def receivedPong(self, socket, msg):
-        #logging.info("Receveid Pong")
         user = socket.getMisc()
         if not user.receivedPong(msg):
             self.endUser(user, 'Unexpected Pong')
