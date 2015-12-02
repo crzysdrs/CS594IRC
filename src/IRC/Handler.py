@@ -143,13 +143,16 @@ class IRCHandler():
     def getIRCMsg(self):
         return self._ircmsg
 
-    def run(self):
+    def isRunning(self):
+        return self.__running
+    
+    def run(self, shutdown=True):
         def maybeSocket(s):
             if type(s) is SocketBuffer:
                 return s.getSocket()
             else:
                 return s
-
+        logging.info("RUN")
         try:
             while self.__running:
                 try:
@@ -182,7 +185,9 @@ class IRCHandler():
         #    print "*** Received Keyboard Interrupt ***"
         #    pass
         finally:
-            self.shutdown()
+            if shutdown:
+                logging.info("Server shutting down")
+                self.shutdown()
 
     def sendMsg(self, socket, msg):
         try:
