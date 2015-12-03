@@ -699,10 +699,10 @@ class IRCClient(IRC.Handler.IRCHandler):
             notify_chan.append(chan)
 
         if src == self.__nick:
-            self.notify(
+            self.updateChat(
                 "*** You joined the channel(s) {channels}".format(
                     channels=",".join(channels)
-                )
+                ), notify_chan + [self.__noneChannel]
             )
         else:
             self.updateChat(
