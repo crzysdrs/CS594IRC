@@ -28,6 +28,7 @@ class SocketBuffer(object):
     so that messages can be buffered before being sent/
     recieved. It also handles cases like socket disconnection.
     """
+
     def __init__(self, socket, misc=None):
         """ Initialize Socket Buffer"""
         self.__sendBuffer = ""
@@ -238,6 +239,7 @@ class IRCHandler(object):
 
     def run(self, shutdown=True):
         """ Run the handler and process messages"""
+
         def maybeSocket(s):
             if type(s) is SocketBuffer:
                 return s.getSocket()

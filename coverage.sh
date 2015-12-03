@@ -1,4 +1,5 @@
 #!/bin/bash
+killall irc_bot irc_server math_bot coverage
 
 mkdir -p log
 echo "######### COVERAGE: Run in an expected behavior mode"

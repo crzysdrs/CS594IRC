@@ -22,6 +22,7 @@ def unique(items):
 
 class IRCUser(object):
     """ Representation of an IRC User Connection"""
+
     def __init__(self, socket, address):
         """ Initialize the IRC User Class"""
         self.__sb = SocketBuffer(socket, misc=self)
@@ -64,12 +65,20 @@ class IRCUser(object):
 
     def removeChannel(self, c):
         """ Remove user from a channel """
-        logging.info("Channels remove {c} to {chan}".format(chan=map(lambda a: a.getName(), self.__channels), c=c))
+        logging.info(
+            "Channels remove {c} to {chan}".format(chan=map(
+                lambda a: a.getName(), self.__channels),
+                                                   c=c)
+        )
         self.__channels.remove(c)
 
     def addChannel(self, c):
         """ Add the user to a channel """
-        logging.info("Channels add {c} from {chan}".format(chan=map(lambda a: a.getName(), self.__channels), c=c))
+        logging.info(
+            "Channels add {c} from {chan}".format(chan=map(
+                lambda a: a.getName(), self.__channels),
+                                                  c=c)
+        )
         self.__channels.append(c)
 
     def getName(self):
@@ -110,6 +119,7 @@ class IRCUser(object):
 
 class IRCChannel(object):
     """ Representation of an IRC Channel"""
+
     def __init__(self, name):
         """ Initialize Channel """
         self.__name = name
@@ -121,13 +131,17 @@ class IRCChannel(object):
             self.__users.append(user)
             user.addChannel(self)
         else:
-            logging.critical("User {u} added to room {r} multiple times".format(u=user, r=self))
+            logging.critical(
+                "User {u} added to room {r} multiple times".format(u=user,
+                                                                   r=self))
 
     def removeUser(self, user):
         """ Remove the user from the channel"""
 
         if user not in self.__users:
-            logging.critical("User {u} remove from room {r} it is not in".format(u=user, r=self))
+            logging.critical(
+                "User {u} remove from room {r} it is not in".format(u=user,
+                                                                    r=self))
         else:
             self.__users.remove(user)
             user.removeChannel(self)
@@ -168,6 +182,7 @@ class IRCServer(IRC.Handler.IRCHandler):
     and provide the high level communications neccesary to manage
     clients
     """
+
     def __init__(self, host, port):
         """ Initialize Server"""
         super(IRCServer, self).__init__(SERVERNAME, host, port)
@@ -457,7 +472,8 @@ class IRCServer(IRC.Handler.IRCHandler):
                             False
                         )
                     )
-                self.sendMsg(socket, self._ircmsg.replyNames(c.getName(), [], False))
+                self.sendMsg(socket, self._ircmsg.replyNames(c.getName(), [],
+                                                             False))
 
     def receivedLeave(self, socket, src, channels, msg):
         """ Handle Leave Command
@@ -510,7 +526,8 @@ class IRCServer(IRC.Handler.IRCHandler):
             for c in channels:
                 chan = self.findChannelByName(c)
                 for u in chunks(map(lambda x: x.getName(), chan.getUsers()), 5):
-                    self.sendMsg(socket, self._ircmsg.replyNames(c, u, client_req))
+                    self.sendMsg(socket, self._ircmsg.replyNames(c, u,
+                                                                 client_req))
                 self.sendMsg(socket, self._ircmsg.replyNames(c, [], client_req))
 
     def receivedPing(self, socket, msg):

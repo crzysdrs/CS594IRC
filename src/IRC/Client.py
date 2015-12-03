@@ -28,6 +28,7 @@ def unique(items):
 
 class CommandParseError(Exception):
     """ A Command Parser Error"""
+
     def __init__(self, msg):
         """ Initialize Exception """
         super(CommandParseError, self).__init__(self)
@@ -40,6 +41,7 @@ class CommandParseError(Exception):
 
 class CommandParseUnimplemented(CommandParseError):
     """ An unimplemented Command """
+
     def __init__(self, msg):
         """ Initialize Exception """
         super(CommandParseUnimplemented, self).__init__(self)
@@ -52,6 +54,7 @@ class CommandParseUnimplemented(CommandParseError):
 
 class CmdArg(object):
     """ An argument representation for a given command"""
+
     def __init__(self, title, regex, error):
         """ Create a Command Argument
 
@@ -74,8 +77,10 @@ class CmdArg(object):
         """Get the title of arg"""
         return self.__title
 
+
 class CommandResult(object):
     """ A Processed set of arguments to a commmand"""
+
     def __init__(self, fn, name, args):
         """ Encapsulate the result of a command process"""
         self.__fn = fn
@@ -93,6 +98,7 @@ class Command(object):
     Can detect, process arguments and return a fully formed
     executable CommandResult
     """
+
     def __init__(self, name, cmd, args=None, extra=False):
         """ Intiailize a Command """
         self.__name = name
@@ -172,25 +178,32 @@ class CommandProcessor(object):
                 'join',
                 self.__joinCmd,
                 args=[
-                    CmdArg("ChannelList", self.CHANNEL_LIST, "Invalid Channel List")
+                    CmdArg("ChannelList", self.CHANNEL_LIST,
+                           "Invalid Channel List")
                 ]
-            ), Command(
+            ),
+            Command(
                 'leave',
                 self.__leaveCmd,
                 args=[
-                    CmdArg("ChannelList", self.CHANNEL_LIST, "Invalid Channel List")
+                    CmdArg("ChannelList", self.CHANNEL_LIST,
+                           "Invalid Channel List")
                 ],
                 extra=True
-            ), Command(
+            ),
+            Command(
                 'channels',
                 self.__channelsCmd,
-            ), Command(
+            ),
+            Command(
                 'users',
                 self.__usersCmd,
                 args=[
-                    CmdArg("ChannelList", self.CHANNEL_LIST, "Invalid Channel List")
+                    CmdArg("ChannelList", self.CHANNEL_LIST,
+                           "Invalid Channel List")
                 ]
-            ), Command(
+            ),
+            Command(
                 'nick',
                 self.__nickCmd,
                 args=[
@@ -200,34 +213,37 @@ class CommandProcessor(object):
                         "Invalid NickName"
                     )
                 ]
-            ), Command(
+            ),
+            Command(
                 'quit',
                 self.__quitCmd,
                 extra=True
-            ), Command(
+            ),
+            Command(
                 'msg',
                 self.__msgCmd,
                 args=[
                     CmdArg(
-                        "ChannelOrNickList",
-                        self.CHANNELNICK_LIST,
+                        "ChannelOrNickList", self.CHANNELNICK_LIST,
                         "Invalid Channel or Nickname List"
                     )
                 ],
                 extra=True
-            ), Command(
+            ),
+            Command(
                 'chanmsg',
                 self.__chanMsgCmd,
                 extra=True
-            ), Command(
+            ),
+            Command(
                 'migrate',
                 self.__migrateCmd,
                 args=[
                     CmdArg("Channel", IRC.Schema.CHANNEL, "Invalid Channel")
                 ]
-            ), Command(
-                'help',
-                self.__helpCmd
+            ),
+            Command(
+                'help', self.__helpCmd
             ),
         ]
 
@@ -235,11 +251,7 @@ class CommandProcessor(object):
         """ Notify client of potential commands """
         client.notify("#### HELP COMMANDS ####")
         for c in self.__cmds:
-            client.notify(
-                "#### {helpmsg}".format(
-                    helpmsg=c.getHelp()
-                )
-            )
+            client.notify("#### {helpmsg}".format(helpmsg=c.getHelp()))
 
     def __joinCmd(self, client, channels):
         """ Notify server of request to join channels """
@@ -274,29 +286,38 @@ class CommandProcessor(object):
     def __chanMsgCmd(self, client, msg):
         """ Send a message to the current channel"""
         if client.currentChannel():
-            irc_msg = client.getIRCMsg().cmdMsg(msg, [client.currentChannel()])
+            irc_msg = client.getIRCMsg().cmdMsg(
+                msg, [client.currentChannel().getName()])
             client.sendMsg(client.serverSocket(), irc_msg)
         else:
             client.notify("**** You aren't in a channel (/migrate to one) ****")
 
-    def __migrateCmd(self, client, chan):
+    def __migrateCmd(self, client, chan_name):
         """ Switch client to new channel """
-        if chan == client.currentChannel():
-            client.notify("*** Already in {chan} ***".format(chan=chan))
-        if chan in client.getJoined():
+        chan = client.findChannel(chan_name)
+        if chan == None:
+            client.notify("**** Unknown channel {chan} ****".format(chan=
+                                                                    chan_name))
+        elif chan == client.currentChannel():
+            client.notify("*** Already in {chan} ***".format(chan=chan.getName(
+            )))
+        elif chan in client.getJoined():
             client.setChannel(chan)
             if not client.isGUI():
-                client.notify("*** Migrated to {chan} ***".format(chan=chan))
+                client.notify("*** Migrated to {chan} ***".format(
+                    chan=chan.getName()))
         else:
             client.notify(
-                "*** You aren't a member of {chan} ***".format(
-                    chan=chan
+                "*** You aren't a member of {chan} (members of {chans}) ***".format(
+                    chan=chan.getName(),
+                    chans=",".join([j.getName() for j in client.getJoined()])
                 )
             )
 
     def __msgCmd(self, client, nicks, msg):
         """ Notify server of message to send privately """
-        client.notify("*** {nick}: {msg}".format(nick=client.getNick(), msg=msg))
+        client.notify("*** {nick}: {msg}".format(nick=client.getNick(),
+                                                 msg=msg))
         client.sendMsg(
             client.serverSocket(), client.getIRCMsg().cmdMsg(
                 msg, unique(nicks.split(','))
@@ -332,11 +353,75 @@ class CommandProcessor(object):
 
 def clientIgnore(some_func):
     """ Log the result of an unhandled command"""
+
     def inner():
         logging.warning("Client received an ignored message.")
         return
 
     return inner
+
+
+class ClientUser(object):
+    """ A simple Reference to a Name for storing in Channels """
+
+    def __init__(self, name):
+        """ Initialize Name """
+        self.__name = name
+
+    def updateName(self, name):
+        """ Update on nick change """
+        self.__name = name
+
+    def getName(self):
+        """ Return the given name """
+        return self.__name
+
+
+class ClientChannel(object):
+    """ A channel that stores lists of users
+
+    Allows for easy name switching and storage of history
+    """
+    MAX_HISTORY = 100  # Length of History Buffer
+
+    def __init__(self, name):
+        """ Initialize Channell """
+        self.__name = name
+        self.__users = []
+        self.__history = []
+
+    def addUser(self, user):
+        """ Add a user to channel """
+        self.__users.append(user)
+
+    def removeUser(self, user):
+        """ Remove the user from channel """
+        self.__users.remove(user)
+
+    def receivedNames(self, users):
+        """ Received a list of names to be used"""
+        self.__users = users
+
+    def userList(self):
+        """ Return full list of users """
+        return self.__users
+
+    def chatHistory(self):
+        """ Returns the chat history """
+        return self.__history
+
+    def addHistory(self, msg):
+        """ Append a message to history, limited length """
+        self.__history.append(msg)
+        self.__history = self.__history[-self.MAX_HISTORY:]
+
+    def userInChannel(self, user):
+        """ Does the given user exist in channel """
+        return user in self.__users
+
+    def getName(self):
+        """ Get the Name of the Channel """
+        return self.__name
 
 
 class IRCClient(IRC.Handler.IRCHandler):
@@ -345,21 +430,22 @@ class IRCClient(IRC.Handler.IRCHandler):
     Takes the base IRCHandler and uses it to produce
     a fully formed Client for the IRC protocol.
     """
+
     def __init__(self, host, port, userinput=sys.stdin):
         """ Initialize Client"""
         self.__nick = "NEWUSER"
         super(IRCClient, self).__init__(self.__nick, host, port)
         self.__chats = defaultdict(list)
-        self.__maxChat = 100
         self.__cmdProc = CommandProcessor()
         self.__server = None
-        self.__currentChannel = None
-        self.__channels = defaultdict(list)
+        self.__noneChannel = self.__currentChannel = ClientChannel("None")
         self.__input = userinput
         self.__gui = ClientConsole(self)
         self.__tempNames = []
-        self.__joined = []
         self.__tempChannels = []
+
+        self.__allUsers = {}
+        self.__allChannels = {self.__noneChannel.getName(): self.__noneChannel}
 
     def connect(self):
         """ Attempt to connect to a given server"""
@@ -388,7 +474,11 @@ class IRCClient(IRC.Handler.IRCHandler):
 
     def getJoined(self):
         """ Return list of joined rooms """
-        return self.__joined
+        return [
+            c
+            for c in self.__allChannels.values()
+            if c.userInChannel(self.findOrCreateUser(self.__nick))
+        ]
 
     def getChats(self):
         """ Return a dictionary of chat messages for rooms"""
@@ -405,13 +495,10 @@ class IRCClient(IRC.Handler.IRCHandler):
         so that the user can read the transcripts
         """
         if channels == None:
-            self.__chats[self.currentChannel()].append(msg)
+            self.currentChannel().addHistory(msg)
         else:
             for c in channels:
-                self.__chats[c].append(msg)
-
-            for c_k in self.__chats.keys():
-                self.__chats[c_k] = self.__chats[c_k][-self.__maxChat:]
+                c.addHistory(msg)
 
         if not self.__gui.isGUI():
             print msg
@@ -439,7 +526,7 @@ class IRCClient(IRC.Handler.IRCHandler):
 
     def getChannels(self):
         """ Gets the known available channels"""
-        return self.__channels
+        return self.__allChannels.values()
 
     def currentChannel(self):
         """ Returns users current channel"""
@@ -493,17 +580,49 @@ class IRCClient(IRC.Handler.IRCHandler):
         """ Notify the GUI that there is a new message """
         self.updateChat(msg)
 
+    def findOrCreateUser(self, name):
+        """ Find or create a user reference """
+        if name in self.__allUsers:
+            return self.__allUsers[name]
+        else:
+            newuser = ClientUser(name)
+            self.__allUsers[name] = newuser
+            return newuser
+
+    def findChannel(self, name):
+        """ Find a a channel with the possibility of failure """
+        if name in self.__allChannels:
+            return self.__allChannels[name]
+        else:
+            return None
+
+    def findOrCreateChannel(self, name):
+        """ Find and potentially create channel """
+        if self.findChannel(name):
+            return self.findChannel(name)
+        else:
+            newchannel = ClientChannel(name)
+            self.__allChannels[name] = newchannel
+            return newchannel
+
+    def allChannelsWithName(self, name):
+        """ Return a list of all channels with a user in them """
+        chans = []
+        user = self.findOrCreateUser(name)
+        for c in self.__allChannels.values():
+            if c.userInChannel(user):
+                chans.append(c)
+        return chans
+
     def receivedNick(self, socket, src, newnick):
         """ Received a nickname.
 
         If it's for the client, update the nickname.
         Otherwise update the nickname of the specified clients
         """
-        notify_chans = []
-        for (k, v) in self.__channels.iteritems():
-            if src in v:
-                notify_chans.append(k)
-            self.__channels[k] = map(lambda n: newnick if n == src else n, v)
+        notify = self.allChannelsWithName(src)
+        user = self.findOrCreateUser(src)
+        user.updateName(newnick)
 
         if self.__nick == src:
             self.__nick = newnick
@@ -513,7 +632,7 @@ class IRCClient(IRC.Handler.IRCHandler):
                     oldnick=src,
                     newnick=newnick
                 ),
-                self.__channels
+                notify
             )
         else:
             self.updateChat(
@@ -521,7 +640,7 @@ class IRCClient(IRC.Handler.IRCHandler):
                     oldnick=src,
                     newnick=newnick
                 ),
-                notify_chans
+                notify
             )
         self.__gui.update()
 
@@ -531,21 +650,21 @@ class IRCClient(IRC.Handler.IRCHandler):
         If it's for the client, shutdown.
         If it's for another client, remove them from chats.
         """
-        notify_chans = []
-        for (k, v) in self.__channels.iteritems():
-            if src in v:
-                notify_chans.append(k)
-                v.remove(src)
+        user = self.findOrCreateUser(src)
+        notify = self.allChannelsWithName(src)
 
-        if src == self.__nick:
-            notify_chans.append(None)
+        for c in notify:
+            c.removeUser(user)
+
+        if src in self.__allUsers:
+            del self.__allUsers[src]
 
         self.updateChat(
             "*** {src} quit ({msg})".format(
                 src=src,
                 msg=msg
             ),
-            notify_chans
+            notify
         )
         self.__gui.updateUsers()
 
@@ -562,15 +681,14 @@ class IRCClient(IRC.Handler.IRCHandler):
         If the join is for the user, add them to the channel.
         If it's for another user, store them in the channel.
         """
+        user = self.findOrCreateUser(src)
+        notify_chan = []
         for c in channels:
-            self.__channels[c].append(src)
-            self.__channels[c] = unique(self.__channels[c])
+            chan = self.findOrCreateChannel(c)
+            chan.addUser(user)
+            notify_chan.append(chan)
 
         if src == self.__nick:
-            for c in channels:
-                self.__joined.append(c)
-                self.__joined = unique(self.__joined)
-
             self.notify(
                 "*** You joined the channel(s) {channels}".format(
                     channels=",".join(channels)
@@ -579,7 +697,7 @@ class IRCClient(IRC.Handler.IRCHandler):
         else:
             self.updateChat(
                 "*** {src} joined the channel".format(src=src),
-                channels
+                notify_chan
             )
         self.__gui.update()
 
@@ -589,26 +707,23 @@ class IRCClient(IRC.Handler.IRCHandler):
         If it's for the user, remove from specified channels.
         If it's for someone else, remove them from channels.
         """
-        delchannels = []
-        for j in self.__joined:
-            if j in channels:
-                if src == self.__nick:
-                    if self.__currentChannel == j:
-                        self.__currentChannel = None
-                    delchannels.append(j)
-                else:
-                    self.__channels[j] = filter(lambda n: n != src, self.__channels[j])
+        user = self.findOrCreateUser(src)
+        notify_chan = []
+        for c in channels:
+            chan = self.findOrCreateChannel(c)
+            if chan.userInChannel(user):
+                chan.removeUser(user)
+                notify_chan.append(chan)
 
-        if src == self.__nick:
-            for d in delchannels:
-                self.__joined.remove(d)
+        if src == self.__nick and self.__currentChannel in notify_chan:
+            self.__currentChannel = self.__noneChannel
 
         self.updateChat(
             "*** {src} left the channel ({msg})".format(
                 src=src,
                 msg=msg
             ),
-            channels
+            notify_chan
         )
         self.__gui.update()
 
@@ -622,9 +737,15 @@ class IRCClient(IRC.Handler.IRCHandler):
         """ Client does not receive users requests"""
         pass
 
+    def filterChannels(self, c):
+        return re.match("^#", c) != None
+
     def receivedMsg(self, socket, src, targets, msg):
         """ Update the chats with the new message depending on target"""
-        channels = filter(lambda c: c in self.__joined, targets)
+
+        channels = filter(lambda t: self.filterChannels(t), targets)
+        channels = map(lambda c: self.findOrCreateChannel(c), channels)
+
         if self.__nick in targets:
             self.notify("*** {src}: {msg}".format(src=src, msg=msg))
         elif len(channels) > 0:
@@ -648,7 +769,12 @@ class IRCClient(IRC.Handler.IRCHandler):
         if self.__gui.isGUI() and not client:
             self.__tempNames.extend(names)
             if len(names) == 0:
-                self.__channels[channel] = self.__tempNames
+                c = self.findOrCreateChannel(channel)
+                newusers = []
+                for n in self.__tempNames:
+                    newusers.append(self.findOrCreateUser(n))
+                c.receivedNames(newusers)
+
                 self.__tempNames = []
             self.__gui.update()
         elif len(names) > 0:
@@ -670,13 +796,13 @@ class IRCClient(IRC.Handler.IRCHandler):
 
             if channels == []:
                 new_set = set(self.__tempChannels)
-                old_set = set(self.__channels.keys())
+                old_set = set(self.__allChannels.keys())
                 remove = old_set - new_set
                 add = new_set - old_set
                 for d in remove:
-                    del self.__channels[d]
-                for d in add:
-                    self.__channels[d] = []
+                    del self.__allChannels[d]
+                for a in add:
+                    self.findOrCreateChannel(a)
 
                 self.__gui.update()
         elif len(channels) > 0:

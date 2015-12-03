@@ -6,6 +6,7 @@ import tempfile
 import logging
 from mathjspy import MathJS
 
+
 class MathBot(IRCClient):
     def __init__(self, hostname, port, cmds=100):
         """ Initialize the IRC Client """
@@ -27,6 +28,7 @@ class MathBot(IRCClient):
             except AttributeError:
                 result = "Invalid Math Expression (may contain undefined values)"
             self.inputCmd("/msg {t} {msg}\n".format(t=src, msg=result))
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Math Bot")

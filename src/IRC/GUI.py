@@ -11,6 +11,7 @@ import logging
 
 class BorderedWin(object):
     """Creates a bordered ncurses window"""
+
     def __init__(self, title, height, width, y, x):
         """ Initialize a new bordered window """
         logging.info(
@@ -45,6 +46,7 @@ class BorderedWin(object):
 class ClientConsole(object):
     """ A generic console implementation stub to allow the
     subclassing of a GUI Client implementation"""
+
     def __init__(self, client):
         """ Initialize Default Console View"""
         self._client = client
@@ -79,6 +81,7 @@ class ClientGUI(ClientConsole):
 
     Manages all windows and updates accordingly
     """
+
     def __init__(self, client, screen):
         """ Initialize Curses based GUI Window"""
         super(ClientGUI, self).__init__(client)
@@ -130,7 +133,7 @@ class ClientGUI(ClientConsole):
     def __redrawChat(self):
         """ Redraw the chat messages window"""
         self.__chatWin.clear()
-        chats = self._client.getChats()[self._client.currentChannel()]
+        chats = self._client.currentChannel().chatHistory()
         count = min(len(chats), self.__chatWin.getmaxyx()[0])
         shown = chats[-count:]
         for c in shown:
@@ -145,10 +148,13 @@ class ClientGUI(ClientConsole):
     def __redrawUsers(self):
         """ Redraw the users window on screen"""
         self.__userWin.clear()
-        all_users = self._client.getChannels()[self._client.currentChannel()]
-        all_users.sort()
-        for i in range(0, min(len(all_users), self.__userWin.getmaxyx()[0])):
-            self.__userWin.addstr(all_users[i] + "\n")
+
+        all_users = [u for u in self._client.currentChannel().userList()]
+        all_users.sort(key=lambda u: u.getName())
+        count = min(len(all_users), self.__userWin.getmaxyx()[0])
+        all_users = all_users[:count]
+        for user in all_users:
+            self.__userWin.addstr(user.getName() + "\n")
 
     def updateUsers(self):
         """ Update the users window on screeen"""
@@ -158,19 +164,21 @@ class ClientGUI(ClientConsole):
     def __redrawChannels(self):
         """ Redraw the channels window"""
         self.__channelWin.clear()
-        all_chans = self._client.getChannels().keys()
-        all_chans.sort()
-        for i in range(0, min(len(all_chans), self.__channelWin.getmaxyx()[0])):
-            cur = self._client.currentChannel() == all_chans[i]
+        all_chans = self._client.getChannels()
+        all_chans.sort(key=lambda c: c.getName())
+        count = min(len(all_chans), self.__channelWin.getmaxyx()[0])
+        show = all_chans[:count]
+        for c in show:
+            cur = self._client.currentChannel() == c
             if cur:
                 attr = curses.A_REVERSE
-            elif all_chans[i] in self._client.getJoined():
+            elif c in self._client.getJoined():
                 attr = curses.A_BOLD
             else:
                 attr = curses.A_DIM
-            if all_chans[i]:
+            if c.getName() != "None":
                 self.__channelWin.addstr(
-                    "{chan}\n".format(chan=all_chans[i]),
+                    "{chan}\n".format(chan=c.getName()),
                     attr
                 )
 
