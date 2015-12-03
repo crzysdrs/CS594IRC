@@ -578,6 +578,9 @@ class IRCClient(IRC.Handler.IRCHandler):
 
     def connectionDrop(self, socket):
         """ Server Disconnect, shutdown client. """
+        if socket == self.__server:
+            self.notify("*** Server Disconnect ***")
+
         if self.__autoQuit and socket == self.__server:
             self.stop()
 

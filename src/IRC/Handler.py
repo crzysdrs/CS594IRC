@@ -38,6 +38,7 @@ class SocketBuffer(object):
         self.__broken = False
         self.__closed = False
         self.__misc = misc
+        self.__notified = False
 
     def getMisc(self):
         """ Return user provided data for socket"""
@@ -84,7 +85,7 @@ class SocketBuffer(object):
 
     def hasMsg(self):
         """ Determin if message is in input queue"""
-        return self.__getMsg() != None or self.isDead()
+        return self.__getMsg() != None or (self.isDead() and not self.__notified)
 
     def __getMsg(self):
         """ Find the first message in the input queue"""
@@ -132,14 +133,15 @@ class SocketBuffer(object):
                     self.__recvBuffer = ditch.group(1)
 
             if self.isDead():
+                self.__notified = True
                 return ''
             else:
                 return None
 
     def recv(self):
         """ Recv data from socket when available """
-        if self.__disconnect or self.__broken:
-            return
+        if self.isDead():
+            pass
         else:
             try:
                 recvd = self.__socket.recv(RWSIZE)
