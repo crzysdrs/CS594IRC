@@ -47,3 +47,4 @@ echo "######### COVERAGE: Waiting for Bot2 to End"
 wait ${BOT2} || exit 1
 
 coverage combine
+coverage report
