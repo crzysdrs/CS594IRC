@@ -697,11 +697,11 @@ class IRCClient(IRC.Handler.IRCHandler):
 
     def receivedSignal(self, sig, frame):
         """ Handle signal gradefully """
-        #if sig == signal.SIGINT:
-        #    msg = "Client interrupted with Ctrl-C."
-        #    logging.info(msg)
-        #    self.notify(msg)
-        #    self.stop()
+        if sig == signal.SIGINT:
+            msg = "Client interrupted with Ctrl-C."
+            logging.info(msg)
+            self.notify(msg)
+            self.stop()
         pass
 
     def sentInvalid(self, socket, msg):
