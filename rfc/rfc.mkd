@@ -491,7 +491,7 @@ In the case of an error, no action will be taken by the server and
 the command will be discarded.
 
 ~~~
-{"error":"Error Name", "msg":"Descriptive Message"}\rn\
+{"error":"Error Name", "msg":"Descriptive Message"}\r\n
 ~~~
 {: #errdefault title="Generic Error"}
 
