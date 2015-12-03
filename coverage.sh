@@ -18,13 +18,13 @@ BOT2=$!
 jobs -l
 sleep 5
 echo "######### COVERAGE: Waiting for BOT1,2"
-wait ${BOT1}
-wait ${BOT2}
+wait ${BOT1} || exit 1
+wait ${BOT2} || exit 1
 echo "######### COVERAGE: Shutdown with one bot running"
 coverage run --parallel-mode --source=src src/irc_bot --log log/1.bot3.log &
 sleep 5
-kill -INT ${SERVER}
-wait ${SERVER}
+kill -INT ${SERVER} || exit 1
+wait ${SERVER} || exit 1
 
 sleep 2
 echo "######### COVERAGE: Unexpected behavior mode, client/server unexpectedly dies"
@@ -39,11 +39,11 @@ jobs -l
 sleep 2
 
 echo "######### COVERAGE: Surpise Kill Client"
-kill -9 ${BOT1}
+kill -9 ${BOT1} || exit 1
 sleep 2
 echo "######### COVERAGE: Surprise Kill Server"
-kill -9 ${SERVER}
+kill -9 ${SERVER} || exit 1
 echo "######### COVERAGE: Waiting for Bot2 to End"
-wait ${BOT2}
+wait ${BOT2} || exit 1
 
 coverage combine
