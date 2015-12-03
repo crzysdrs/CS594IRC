@@ -702,7 +702,6 @@ class IRCClient(IRC.Handler.IRCHandler):
             logging.info(msg)
             self.notify(msg)
             self.stop()
-        pass
 
     def sentInvalid(self, socket, msg):
         """ Notify user that invalid message was sent"""
