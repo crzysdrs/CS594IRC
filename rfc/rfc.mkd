@@ -2,7 +2,7 @@
 title: CS594 IRC Draft
 abbrev: IRC-Draft
 docname: draft-msouders-2015
-date: 2015-11-13
+date: 2015-12-02
 
 cat: std
 kw: Internet-Draft
@@ -31,13 +31,6 @@ informative:
   RFC4627:
 
 --- abstract
-
-<!--
-NEED TO UPDATE COMMANDS JOIN, LEAVE, NICK
-They now respond with their commands to the client to notify success.
-Rather than reply_ok
-
--->
 
 A proposed re-implementation of a small subset of an IRC server
 functionality. This implementation will not be compatible with
@@ -140,6 +133,22 @@ carriage return followed by a newline.
 All messages will be 1024 bytes or fewer including the message terminating
 newlines.
 
+## Client Initialization
+
+Upon connection with the server, the client will be sent a `nick` command
+changing the name `NEWUSER` to a randomly generated name. The client
+default name is `NEWUSER` so this will properly change the name. This allows
+all users to begin immediately interacting with the server
+with a unique name. The user is free to adjust this name at will using
+the `nick` command.
+
+## Server Initialization
+
+The server will be called `SERVER` for any communications that require
+the server to be recognized as the sender. This only applies to `quit`
+commands that are sent on behalf of the server in order to not forcibly
+shut down the client due to connection drops or other issues.
+
 # IRC Concepts
 
 ## One-to-one communication
@@ -168,10 +177,8 @@ within the channels.
 
 ## One-to-all communication
 
-The only available command to send messages to all clients (short
-of listing every client in a `msg` command) is the `squit` command
-which allows the server to communicate with all connected users
-that the system is shutting down.
+The only available command to send messages to all clients is the
+“msg” command sent to all users.
 
 # Commands
 
@@ -214,11 +221,13 @@ to the desired new nickname.
 The nickname must mean the requirements specified for clients in {{clients}}
 or the client will receive `badnick` and be advised to pick a different one.
 If any client on the server already has the desired nickname then the client
-will recieve a `nickinuse` error message.
+will recieve a `nickinuse` error message. The server will reply with a `nick`
+command indicating success. The server will additionally notify users in other
+channels with the same `nick` command.
 
-Possible Replies:
+Possible Response:
 
-* ok
+* nick
 
 Possible Errors:
 
@@ -240,32 +249,21 @@ an immediate disconnect from the server. It allows for an optional
 disconnect message (`msg`) which will be displayed in any channels
 the client is currently in.
 
-Possible Replies:
+The server will acknowledge your `quit` command by sending it back
+to you as well as other users in channels that need to be notified
+that you are leaving.
 
-* ok
+If the server detects an issues (such as a late `pong` or connection
+drop) it may send a `quit` command from `SERVER` that notifies the
+client they have been disconnected against their will.
 
-Possible Errors:
+Possible Response:
 
-* schema
-
-### Server Quit
-
-~~~
-   Command: squit
-Parameters:
-{
-    "msg":"Quit Message"
-}
-~~~
-
-The server can send the `squit` message that tells clients that the server
-is shutting down, with an optional `msg`. This gives clients the opportunity
-to shut down for a known reason rather than simply being disconnected.
+* quit
 
 Possible Errors:
 
 * schema
-
 
 ## Channel Operations
 
@@ -288,13 +286,15 @@ If any channel listed does not exist, the error message `nochannel` will
 be returned and the command will have no effect.
 
 If the channel name is invalid based on the channel naming conventions in {{channels}}
-the error `badchannel` will be sent.
+the error `badchannel` may be sent.
 
-When joined, the channel will reply with a list of client in the target
-channels using reply one or more `names` replies.
+When joined, the channel will send send a `join` to you and all other
+users that are in the joined channel. Additionally it will reply with
+a list of clients in the target channels using reply one or more `names` replies
+(which includes the added user).
 
 Possible Replies:
-
+* join
 * names
 
 Possible Errors:
@@ -320,8 +320,11 @@ to be display to the channel upon departure.
 If any channel does not exist, the error message `nochannel` will
 be returned and the command will have no effect.
 
+The server wil reply with a `leave` command to the client and other
+clients in the channel if upon successful leave.
+
 Possible Replies:
-* ok
+* leave
 
 Possible Errors:
 
@@ -335,12 +338,12 @@ Parameters: None
 ~~~
 
 The channels command takes no parameters and returns a list of available
-channels on the server using the `names` reply. `names` will continue to be
+channels on the server using the `channels` reply. `channels` will continue to be
 sent until there are no more names to send and the array will be empty.
 
 Possible Responses:
 
-* names
+* channels reply
 
 Possible Errors
 
@@ -352,13 +355,17 @@ Possible Errors
    Command: users
 Parameters:
 {
-  "channels":["#x",...]
+  "channels":["#x",...],
+  "client":Boolean
 }
 ~~~
 
 The `users` command will take an optional `channels` parameter that can be an
 array of channel names. With no argument, it will return the clients from the
 channels the client has joined in the form of one or more `names` replies.
+The client can additionally specify a `client` field that will indicate
+the users request is based on a user invocation rather than an automatic
+behavior.
 
 Possible Replies:
 
@@ -389,7 +396,7 @@ does not exist the server will generate the error `nonexist`.
 
 Possible Replies:
 
-* ok
+* No response on success
 
 Possible Errors:
 
@@ -435,11 +442,12 @@ The `pong` command is only sent in response to a `ping` command.
 This command will send the same message in reply to a pong command.
 
 If the message replied is incorrect the client will be disconnected
-from the server.
+from the server with the use of a `quit` command.
 
 Possible Replies:
 
-* ok
+* No response on success
+* quit
 
 Possible Errors:
 
@@ -453,20 +461,25 @@ The server will reply with JSON messages that indicate the response of a command
 or potentially an error response. Replies will have a name of the type of reply in the field `reply`.
 The default reply is `OK` (for successful messages that require no additional data.
 See {{replydefault}}.
-Somee replies may contain additional fields that contain requested information.
+Some replies may contain additional fields that contain requested information.
 
 ~~~
-{"reply":"OK",...}\r\n
+{"reply":"names",...}\r\n
 ~~~
 {: #replydefault title="Generic Reply"}
-
-ok:
-: Indicates that the command was succesfully sent and action taken.
 
 names:
 : Contains an array of `names` in response. Names will continue
 to be sent in subsequent replies. The replies will end with an
-empty array indicating the end of the list.
+empty array indicating the end of the list. Names will have an
+additional field `client` that indicates it is based on a
+user request rather than part of an automatic server update or
+response to a `join` command.
+
+channels:
+: Contains an array of `channels` in response. Each response
+will contain a subset of the list of channels. The channels response
+will terminate with an empty array of channels.
 
 ## Errors
 
@@ -490,7 +503,9 @@ nickinuse:
 
 schema:
 : Indicates an invalid command was sent. The message
- may be missing required fields or is invalid JSON.
+may be missing required fields or is invalid JSON.
+Additionally the schema error also covers `badchannel` and
+`badnick` as the schema covers these fields.
 
 nochannel:
 : There is no channel that matches the desired name on the server.
@@ -522,7 +537,7 @@ to basically have plugins that could handle additional features.
 However, it is possible that additional protocol methods will
 be added to allow higher level functionality to be better supported.
 
-This draft currently describes functionality that should meet the
+This draft currently describes functionality that meets the
 required specifications of the IRC Grading Sheet.
 
 # Security Considerations
