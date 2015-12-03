@@ -31,7 +31,7 @@ CMDS = [
 CHANNELS = ["#test", "#bots", "#ignore"]
 SENDNICKS = ["mathbot", "bot1", "bot2", "bot3", "bot4", "bot5"]
 SETNICKS = ["bot1", "bot2", "bot3", "bot4", "bot5"]
-MSGS = ["This is a test", "I am a bot", "Are you a bot?"]
+MSGS = ["This is a test", "I am a bot", "Are you a bot?", "3 + 3"]
 
 
 class IRCBot(IRCClient):
@@ -39,7 +39,7 @@ class IRCBot(IRCClient):
         """ Initialize the IRC Client """
         self.__lasttime = 0
         self.__commands = cmds
-        super(IRCBot, self).__init__(hostname, port)
+        super(IRCBot, self).__init__(hostname, port, autoQuit=True)
         self.setTimeout(0.1)
 
     def timeStep(self):

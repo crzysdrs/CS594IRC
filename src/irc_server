@@ -241,13 +241,17 @@ class IRCServer(IRC.Handler.IRCHandler):
         self.sendMsg(user.getSocketBuffer(), userIRC.cmdNick(user.getName()))
         self.__users[user.getName()] = user
 
-    def endUser(self, user, msg):
+    def endUser(self, user, msg, fromServer=False):
         """ Ends a user
 
         Send messages to the subscribed channels that user is leaving
         and removes user from server
         """
-        userIRC = IRC.Message.IRCMessage(user.getName())
+        if fromServer:
+            userIRC = IRC.Message.IRCMessage("SERVER")
+        else:
+            userIRC = IRC.Message.IRCMessage(user.getName())
+
         logging.info("Attempting to endUser {u}".format(u=user.getName()))
 
         if user.getName() in self.__users:
@@ -615,7 +619,7 @@ class IRCServer(IRC.Handler.IRCHandler):
         self.__running = False
         self.__server.close()
         for u in self.__users.values():
-            self.endUser(u, 'Server Shutdown')
+            self.endUser(u, 'Server Shutdown', fromServer=True)
         logging.info("Server shut down.")
 
 

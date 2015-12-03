@@ -1,5 +1,7 @@
 #!/bin/bash
-killall irc_bot irc_server math_bot coverage
+killall -SIGINT irc_bot irc_server math_bot coverage
+coverage erase
+sleep 1
 
 mkdir -p log
 echo "######### COVERAGE: Run in an expected behavior mode"

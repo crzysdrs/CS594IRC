@@ -47,18 +47,18 @@ class SocketBuffer(object):
         """ Accept connections on this buffer"""
         return self.__socket.accept()
 
-    def __dead(self):
+    def isDead(self):
         """ Socket has been killed in some form"""
         return self.__disconnect or self.__broken or self.__closed
 
     def readyToSend(self):
         """ Any messages waiting to send"""
-        return not self.__dead() and len(self.__sendBuffer) > 0
+        return not self.isDead() and len(self.__sendBuffer) > 0
 
     def send(self):
         """ Attempt to send the buffer size amount of messages"""
         try:
-            if not self.__dead():
+            if not self.isDead():
                 (payload, self.__sendBuffer) = (
                     self.__sendBuffer[:RWSIZE], self.__sendBuffer[RWSIZE:]
                 )
@@ -70,12 +70,12 @@ class SocketBuffer(object):
 
     def addMessage(self, msg):
         """ Add a given message to the message queue"""
-        if not self.__dead():
+        if not self.isDead():
             self.__sendBuffer += msg
 
     def close(self):
         """ Close the socket"""
-        if not self.__dead():
+        if not self.isDead():
             while len(self.__sendBuffer):
                 self.send()
             self.__socket.close()
@@ -84,7 +84,7 @@ class SocketBuffer(object):
 
     def hasMsg(self):
         """ Determin if message is in input queue"""
-        return self.__getMsg() != None or self.__dead()
+        return self.__getMsg() != None or self.isDead()
 
     def __getMsg(self):
         """ Find the first message in the input queue"""
@@ -131,7 +131,7 @@ class SocketBuffer(object):
                     )
                     self.__recvBuffer = ditch.group(1)
 
-            if self.__dead():
+            if self.isDead():
                 return ''
             else:
                 return None

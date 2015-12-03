@@ -11,7 +11,7 @@ class MathBot(IRCClient):
     def __init__(self, hostname, port, cmds=100):
         """ Initialize the IRC Client """
         self.__commands = cmds
-        super(MathBot, self).__init__(hostname, port)
+        super(MathBot, self).__init__(hostname, port, autoQuit=True)
         self.setTimeout(0.1)
         self.__mjs = MathJS()
 

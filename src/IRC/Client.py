@@ -282,6 +282,8 @@ class CommandProcessor(object):
         """ Notify server of request to quit"""
         irc_msg = client.getIRCMsg().cmdQuit(msg)
         client.sendMsg(client.serverSocket(), irc_msg)
+        if client.serverSocket().isDead():
+            client.stop()
 
     def __chanMsgCmd(self, client, msg):
         """ Send a message to the current channel"""
@@ -308,9 +310,8 @@ class CommandProcessor(object):
                     chan=chan.getName()))
         else:
             client.notify(
-                "*** You aren't a member of {chan} (members of {chans}) ***".format(
-                    chan=chan.getName(),
-                    chans=",".join([j.getName() for j in client.getJoined()])
+                "*** You aren't a member of {chan}) ***".format(
+                    chan=chan.getName()
                 )
             )
 
@@ -431,11 +432,10 @@ class IRCClient(IRC.Handler.IRCHandler):
     a fully formed Client for the IRC protocol.
     """
 
-    def __init__(self, host, port, userinput=sys.stdin):
+    def __init__(self, host, port, userinput=sys.stdin, autoQuit=False):
         """ Initialize Client"""
         self.__nick = "NEWUSER"
         super(IRCClient, self).__init__(self.__nick, host, port)
-        self.__chats = defaultdict(list)
         self.__cmdProc = CommandProcessor()
         self.__server = None
         self.__noneChannel = self.__currentChannel = ClientChannel("None")
@@ -443,7 +443,7 @@ class IRCClient(IRC.Handler.IRCHandler):
         self.__gui = ClientConsole(self)
         self.__tempNames = []
         self.__tempChannels = []
-
+        self.__autoQuit = autoQuit
         self.__allUsers = {}
         self.__allChannels = {self.__noneChannel.getName(): self.__noneChannel}
 
@@ -573,7 +573,7 @@ class IRCClient(IRC.Handler.IRCHandler):
 
     def connectionDrop(self, socket):
         """ Server Disconnect, shutdown client. """
-        if socket == self.__server:
+        if self.__autoQuit and socket == self.__server:
             self.stop()
 
     def notify(self, msg):
@@ -651,10 +651,12 @@ class IRCClient(IRC.Handler.IRCHandler):
         If it's for another client, remove them from chats.
         """
         user = self.findOrCreateUser(src)
-        notify = self.allChannelsWithName(src)
-
-        for c in notify:
-            c.removeUser(user)
+        if src == "SERVER":
+            notify = self.__allChannels.values()
+        else:
+            notify = self.allChannelsWithName(src)
+            for c in notify:
+                c.removeUser(user)
 
         if src in self.__allUsers:
             del self.__allUsers[src]
