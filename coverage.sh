@@ -1,8 +1,13 @@
 #!/bin/bash
-killall -SIGINT irc_bot irc_server math_bot coverage
+pkill -SIGINT -f irc_bot
+pkill -SIGINT -f irc_server
+pkill -SIGINT -f irc_client
+pkill -SIGINT -f math_bot
+killall -SIGINT coverage
+
 coverage erase
 sleep 1
-
+o
 mkdir -p log
 echo "######### COVERAGE: Run in an expected behavior mode"
 coverage run --parallel-mode --source=src src/irc_bot --log log/1.bot.noserver.log &

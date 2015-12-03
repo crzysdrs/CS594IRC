@@ -17,11 +17,12 @@ class MathBot(IRCClient):
 
     def run(self):
         self.inputCmd("/nick mathbot\n")
+        self.inputCmd("/join #math\n")
         super(MathBot, self).run(self)
 
     def receivedMsg(self, socket, src, targets, msg):
         super(MathBot, self).receivedMsg(socket, src, targets, msg)
-        if self.getNick() in targets:
+        if self.getNick() in targets or "#math" in targets:
             try:
                 logging.info("Received math expression {m}".format(m=msg))
                 result = self.__mjs.eval(msg.encode('ascii', 'ignore'))
