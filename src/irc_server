@@ -263,12 +263,10 @@ class IRCServer(IRC.Handler.IRCHandler):
             user.leave(self)
             del self.__users[user.getName()]
 
-            for c in channels:
-                self.sendMsgToSockets(
-                    map(
-                        lambda u: u.getSocketBuffer(), c.getUsers()
-                    ), userIRC.cmdQuit(msg)
-                )
+            self.sendMsgToTargets(
+                [c.getName() for c in channels],
+                userIRC.cmdQuit(msg)
+            )
 
     def timeStep(self):
         """ Tasks done periodically
@@ -390,14 +388,19 @@ class IRCServer(IRC.Handler.IRCHandler):
     def sendMsgToTargets(self, targets, msg):
         """ Sends a given msg to all target locations """
         if not self.validTargets(targets):
-            return
+            logging.critical(
+                "Attempted to send message to invalid targets {targets}".format(
+                ",".join(targets)
+                )
+            )
+            raise BaseException("Invalid Targets")
 
         sockets = self.socketTargets(targets)
-        sockets = unique(sockets)
         self.sendMsgToSockets(sockets, msg)
 
     def sendMsgToSockets(self, sockets, msg):
         """ Send a given message to all specified sockets """
+        sockets = unique(sockets)
         for s in sockets:
             super(IRCServer, self).sendMsg(s, msg)
 
@@ -417,13 +420,11 @@ class IRCServer(IRC.Handler.IRCHandler):
             del self.__users[user.getName()]
 
             user.changeName(newnick)
-            self.sendMsg(socket, userIRC.cmdNick(newnick))
-            for c in user.getChannels():
-                self.sendMsgToSockets(
-                    map(
-                        lambda u: u.getSocketBuffer(), c.getUsers()
-                    ), userIRC.cmdNick(newnick)
-                )
+
+            self.sendMsgToTargets(
+                [c.getName() for c in user.getChannels()] + [newnick],
+                userIRC.cmdNick(newnick)
+            )
         else:
             self.sendMsg(
                 socket,
@@ -463,12 +464,12 @@ class IRCServer(IRC.Handler.IRCHandler):
         else:
             userIRC = IRC.Message.IRCMessage(user.getName())
             match_channels = map(lambda c: self.findCreateChannel(c), channels)
+
             for c in match_channels:
                 c.addUser(user)
-                self.sendMsgToSockets(
-                    map(
-                        lambda u: u.getSocketBuffer(), c.getUsers()
-                    ), userIRC.cmdJoin([c.getName()])
+                self.sendMsgToTargets(
+                    [c.getName()],
+                    userIRC.cmdJoin([c.getName()])
                 )
                 for chunk in chunks(c.getUsers(), 5):
                     self.sendMsg(
@@ -504,11 +505,11 @@ class IRCServer(IRC.Handler.IRCHandler):
         else:
             userIRC = IRC.Message.IRCMessage(user.getName())
             for c in match_channels:
-                self.sendMsgToSockets(
-                    map(
-                        lambda u: u.getSocketBuffer(), c.getUsers()
-                    ), userIRC.cmdLeave(
-                        [c.getName()], msg
+                self.sendMsgToTargets(
+                    [c.getName()],
+                    userIRC.cmdLeave(
+                        [c.getName()],
+                        msg
                     )
                 )
                 c.removeUser(user)

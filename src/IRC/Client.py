@@ -629,6 +629,9 @@ class IRCClient(IRC.Handler.IRCHandler):
         user = self.findOrCreateUser(src)
         user.updateName(newnick)
 
+        self.__allUsers[newnick] = user
+        del self.__allUsers[src]
+
         if self.__nick == src:
             self.__nick = newnick
             self._ircmsg.updateSrc(newnick)

@@ -176,7 +176,7 @@ class ClientGUI(ClientConsole):
                 attr = curses.A_BOLD
             else:
                 attr = curses.A_DIM
-            if c.getName() != "None":
+            if c != self._client.getNoneChannel():
                 self.__channelWin.addstr(
                     "{chan}\n".format(chan=c.getName()),
                     attr
