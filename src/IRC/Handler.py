@@ -251,10 +251,10 @@ class IRCHandler(object):
                     inputs = self.getInputSocketList()
                     outputs = self.getOutputSocketList()
                     sockets = {maybeSocket(k): k for k in inputs + outputs}
-                    logging.debug(
-                        "Running Select %d %d Timeout %f" %
-                        (len(inputs), len(outputs), self.__timeout)
-                    )
+                    #logging.debug(
+                    #    "Running Select %d %d Timeout %f" %
+                    #    (len(inputs), len(outputs), self.__timeout)
+                    #)
                     inputready, outputready, exceptready = select.select(
                         map(lambda x: maybeSocket(x), inputs),
                         map(lambda x: maybeSocket(x), outputs), [],

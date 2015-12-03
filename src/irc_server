@@ -64,10 +64,12 @@ class IRCUser(object):
 
     def removeChannel(self, c):
         """ Remove user from a channel """
+        logging.info("Channels remove {c} to {chan}".format(chan=map(lambda a: a.getName(), self.__channels), c=c))
         self.__channels.remove(c)
 
     def addChannel(self, c):
         """ Add the user to a channel """
+        logging.info("Channels add {c} from {chan}".format(chan=map(lambda a: a.getName(), self.__channels), c=c))
         self.__channels.append(c)
 
     def getName(self):
@@ -91,7 +93,8 @@ class IRCUser(object):
         """
         logging.info("User %s left", self)
 
-        for c in self.__channels:
+        chans = list(self.__channels)
+        for c in chans:
             c.removeUser(self)
 
         self.__sb.close()
@@ -114,13 +117,20 @@ class IRCChannel(object):
 
     def addUser(self, user):
         """ Add a user to the channel """
-        self.__users.append(user)
-        user.addChannel(self)
+        if user not in self.__users:
+            self.__users.append(user)
+            user.addChannel(self)
+        else:
+            logging.critical("User {u} added to room {r} multiple times".format(u=user, r=self))
 
     def removeUser(self, user):
         """ Remove the user from the channel"""
-        self.__users.remove(user)
-        user.removeChannel(self)
+
+        if user not in self.__users:
+            logging.critical("User {u} remove from room {r} it is not in".format(u=user, r=self))
+        else:
+            self.__users.remove(user)
+            user.removeChannel(self)
 
     def userInChannel(self, user):
         """ Is the user specified in the channel?"""
@@ -164,8 +174,8 @@ class IRCServer(IRC.Handler.IRCHandler):
 
         logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
         self.__size = 1024
-        self.__rooms = []
-        self.__users = []
+        self.__rooms = {}
+        self.__users = {}
         self.__running = False
         self.__last_ping = 0
         self.__server = None
@@ -206,7 +216,7 @@ class IRCServer(IRC.Handler.IRCHandler):
         else:
             logging.info('Creating room \'%s\'.', roomName)
             newRoom = IRCChannel(roomName)
-            self.__rooms.append(newRoom)
+            self.__rooms[newRoom.getName()] = newRoom
             return newRoom
 
     def newUser(self, client, address):
@@ -214,7 +224,7 @@ class IRCServer(IRC.Handler.IRCHandler):
         user = IRCUser(client, address)
         userIRC = IRC.Message.IRCMessage(NEWUSERNAME)
         self.sendMsg(user.getSocketBuffer(), userIRC.cmdNick(user.getName()))
-        self.__users.append(user)
+        self.__users[user.getName()] = user
 
     def endUser(self, user, msg):
         """ Ends a user
@@ -223,12 +233,15 @@ class IRCServer(IRC.Handler.IRCHandler):
         and removes user from server
         """
         userIRC = IRC.Message.IRCMessage(user.getName())
-        if user in self.__users:
+        logging.info("Attempting to endUser {u}".format(u=user.getName()))
+
+        if user.getName() in self.__users:
+            logging.info("endUser {u}".format(u=user.getName()))
             self.sendMsg(user.getSocketBuffer(), userIRC.cmdQuit(msg))
 
             channels = list(user.getChannels())
             user.leave(self)
-            self.__users.remove(user)
+            del self.__users[user.getName()]
 
             for c in channels:
                 self.sendMsgToSockets(
@@ -245,49 +258,45 @@ class IRCServer(IRC.Handler.IRCHandler):
         """
         if time.time() - self.__last_ping > 2:
             #logging.info("Verifying Pongs/Sending Pings")
-            for client in self.__users:
+            for client in self.__users.values():
                 if client.unansweredPing():
                     self.endUser(client, 'No ping response')
                 else:
                     client.sendPing(self, str(time.time()))
 
             #Periodically Cull Empty Rooms
-            save_rooms = filter(lambda r: len(r.getUsers()) > 0, self.__rooms)
             delete_rooms = filter(
-                lambda r: len(r.getUsers()) == 0, self.__rooms
+                lambda r: len(r.getUsers()) == 0, self.__rooms.values()
             )
 
             for c in delete_rooms:
+                del self.__rooms[c.getName()]
                 logging.info("Room Destroyed {n}".format(n=c.getName()))
 
-            self.__rooms = save_rooms
             self.__last_ping = time.time()
 
     def findUserByName(self, name):
         """ Finds a user by given name """
-        results = filter(lambda x: x.getName() == name, self.__users)
-        if len(results) == 0:
-            return None
+        if name in self.__users:
+            return self.__users[name]
         else:
-            return results[0]
+            return None
 
     def findChannelByName(self, name):
         """ Find channel based on name """
-        results = filter(lambda x: x.getName() == name, self.__rooms)
-        if len(results) == 0:
-            return None
+        if name in self.__rooms:
+            return self.__rooms[name]
         else:
-            return results[0]
+            return None
 
     def userNameAvailable(self, name):
         """ Determine if user can change name to specified name """
-        return all(
-            map(
-                lambda n: n != name, map(
-                    lambda x: x.getName(), self.__users
-                ) + SPECIALNAMES
-            )
-        )
+        if name in self.__users:
+            return False
+        elif name in SPECIALNAMES:
+            return False
+        else:
+            return True
 
     def connectionDrop(self, socket):
         """ Notify server of connection drop
@@ -301,14 +310,14 @@ class IRCServer(IRC.Handler.IRCHandler):
     def getInputSocketList(self):
         """ Provide Handler with desired input sockets """
         inputs = [self.__server]
-        inputs.extend(map(lambda u: u.getSocketBuffer(), self.__users))
+        inputs.extend(map(lambda u: u.getSocketBuffer(), self.__users.values()))
         return inputs
 
     def getOutputSocketList(self):
         """ Provide handler with desired output sockets """
         return filter(
             lambda s: s.readyToSend(), map(
-                lambda u: u.getSocketBuffer(), self.__users
+                lambda u: u.getSocketBuffer(), self.__users.values()
             )
         )
 
@@ -382,6 +391,11 @@ class IRCServer(IRC.Handler.IRCHandler):
         if self.userNameAvailable(newnick):
             user = socket.getMisc()
             userIRC = IRC.Message.IRCMessage(user.getName())
+
+            #Update Name Lookup with new nickname and remove old
+            self.__users[newnick] = user
+            del self.__users[user.getName()]
+
             user.changeName(newnick)
             self.sendMsg(socket, userIRC.cmdNick(newnick))
             for c in user.getChannels():
@@ -480,7 +494,7 @@ class IRCServer(IRC.Handler.IRCHandler):
 
     def receivedChannels(self, socket):
         """ Reply with list of channels to user"""
-        for c in chunks(map(lambda x: x.getName(), self.__rooms), 5):
+        for c in chunks(map(lambda x: x.getName(), self.__rooms.values()), 5):
             self.sendMsg(socket, self._ircmsg.replyChannels(c))
         self.sendMsg(socket, self._ircmsg.replyChannels([]))
 
@@ -583,7 +597,7 @@ class IRCServer(IRC.Handler.IRCHandler):
         logging.info("Shutting down server.")
         self.__running = False
         self.__server.close()
-        for u in self.__users:
+        for u in self.__users.values():
             self.endUser(u, 'Server Shutdown')
         logging.info("Server shut down.")
 

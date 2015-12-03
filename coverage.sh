@@ -33,11 +33,10 @@ SERVER=$!
 sleep 5
 coverage run --parallel-mode --source=src src/irc_bot --log log/2.bot1.log &
 BOT1=$!
-sleep 2
 coverage run --parallel-mode --source=src src/irc_bot --log log/2.bot2.log &
 BOT2=$!
 jobs -l
-sleep 10
+sleep 2
 
 echo "######### COVERAGE: Surpise Kill Client"
 kill -9 ${BOT1}

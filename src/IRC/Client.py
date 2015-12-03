@@ -283,7 +283,7 @@ class CommandProcessor(object):
         """ Switch client to new channel """
         if chan == client.currentChannel():
             client.notify("*** Already in {chan} ***".format(chan=chan))
-        if chan in client.getChannels():
+        if chan in client.getJoined():
             client.setChannel(chan)
             if not client.isGUI():
                 client.notify("*** Migrated to {chan} ***".format(chan=chan))
@@ -564,11 +564,13 @@ class IRCClient(IRC.Handler.IRCHandler):
         """
         for c in channels:
             self.__channels[c].append(src)
-            self.__joined.append(c)
-            self.__joined = unique(self.__joined)
             self.__channels[c] = unique(self.__channels[c])
 
         if src == self.__nick:
+            for c in channels:
+                self.__joined.append(c)
+                self.__joined = unique(self.__joined)
+
             self.notify(
                 "*** You joined the channel(s) {channels}".format(
                     channels=",".join(channels)
@@ -588,26 +590,26 @@ class IRCClient(IRC.Handler.IRCHandler):
         If it's for someone else, remove them from channels.
         """
         delchannels = []
-        for (k, v) in self.__channels.iteritems():
-            if k in channels:
+        for j in self.__joined:
+            if j in channels:
                 if src == self.__nick:
-                    if self.__currentChannel == k:
+                    if self.__currentChannel == j:
                         self.__currentChannel = None
-                    delchannels.append(k)
+                    delchannels.append(j)
                 else:
-                    self.__channels[k] = filter(lambda n: n != src, v)
+                    self.__channels[j] = filter(lambda n: n != src, self.__channels[j])
 
-        for d in delchannels:
-            self.__joined.remove(d)
+        if src == self.__nick:
+            for d in delchannels:
+                self.__joined.remove(d)
 
-        if src != self.__nick:
-            self.updateChat(
-                "*** {src} left the channel ({msg})".format(
-                    src=src,
-                    msg=msg
-                ),
-                channels
-            )
+        self.updateChat(
+            "*** {src} left the channel ({msg})".format(
+                src=src,
+                msg=msg
+            ),
+            channels
+        )
         self.__gui.update()
 
     @clientIgnore
@@ -622,7 +624,7 @@ class IRCClient(IRC.Handler.IRCHandler):
 
     def receivedMsg(self, socket, src, targets, msg):
         """ Update the chats with the new message depending on target"""
-        channels = filter(lambda c: c in self.__channels, targets)
+        channels = filter(lambda c: c in self.__joined, targets)
         if self.__nick in targets:
             self.notify("*** {src}: {msg}".format(src=src, msg=msg))
         elif len(channels) > 0:
@@ -695,11 +697,12 @@ class IRCClient(IRC.Handler.IRCHandler):
 
     def receivedSignal(self, sig, frame):
         """ Handle signal gradefully """
-        if sig == signal.SIGINT:
-            msg = "Client interrupted with Ctrl-C."
-            logging.info(msg)
-            self.notify(msg)
-            self.stop()
+        #if sig == signal.SIGINT:
+        #    msg = "Client interrupted with Ctrl-C."
+        #    logging.info(msg)
+        #    self.notify(msg)
+        #    self.stop()
+        pass
 
     def sentInvalid(self, socket, msg):
         """ Notify user that invalid message was sent"""
