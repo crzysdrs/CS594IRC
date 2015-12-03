@@ -11,6 +11,7 @@ import time
 import json
 import jsonschema
 import IRC
+import re
 from IRC.Handler import SocketBuffer
 from more_itertools import unique_everseen
 
@@ -582,15 +583,24 @@ class IRCServer(IRC.Handler.IRCHandler):
         Determine if targets are valid and pass message
         to other users as neccesary.
         """
-        srcUser = socket.getMisc()
-        userIRC = IRC.Message.IRCMessage(srcUser.getName())
+        user = socket.getMisc()
+        userIRC = IRC.Message.IRCMessage(user.getName())
 
         msg = userIRC.cmdMsg(msg, targets)
-
         if not self.validTargets(targets):
             self.sendMsg(
                 socket, self._ircmsg.errorMsg(
                     "nonexist", "One or more channels/users does not exist"
+                )
+            )
+            return
+
+        match_channels = map(lambda c: self.findChannelByName(c),
+                             filter(lambda c: re.match("^#", c), targets))
+        if not all(map(lambda c: c.userInChannel(user), match_channels)):
+            self.sendMsg(
+                socket, self._ircmsg.errorMsg(
+                    "nonmember", "Not a member in one or more channels"
                 )
             )
         else:

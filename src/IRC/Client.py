@@ -310,7 +310,7 @@ class CommandProcessor(object):
                     chan=chan.getName()))
         else:
             client.notify(
-                "*** You aren't a member of {chan}) ***".format(
+                "*** You aren't a member of {chan} ***".format(
                     chan=chan.getName()
                 )
             )
@@ -446,6 +446,8 @@ class IRCClient(IRC.Handler.IRCHandler):
         self.__autoQuit = autoQuit
         self.__allUsers = {}
         self.__allChannels = {self.__noneChannel.getName(): self.__noneChannel}
+
+        self.__noneChannel.addUser(self.findOrCreateUser(self.__nick))
 
     def connect(self):
         """ Attempt to connect to a given server"""
@@ -721,11 +723,12 @@ class IRCClient(IRC.Handler.IRCHandler):
             self.__currentChannel = self.__noneChannel
 
         self.updateChat(
-            "*** {src} left the channel ({msg})".format(
+            "*** {src} left the channel(s) {chans} ({msg})".format(
                 src=src,
-                msg=msg
+                msg=msg,
+                chans=", ".join([c.getName() for c in notify_chan])
             ),
-            notify_chan
+            [self.__noneChannel] + notify_chan
         )
         self.__gui.update()
 
