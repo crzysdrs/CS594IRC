@@ -287,7 +287,7 @@ class CommandProcessor(object):
 
     def __chanMsgCmd(self, client, msg):
         """ Send a message to the current channel"""
-        if client.currentChannel():
+        if client.currentChannel() != client.getNoneChannel():
             irc_msg = client.getIRCMsg().cmdMsg(
                 msg, [client.currentChannel().getName()])
             client.sendMsg(client.serverSocket(), irc_msg)
@@ -448,6 +448,9 @@ class IRCClient(IRC.Handler.IRCHandler):
         self.__allChannels = {self.__noneChannel.getName(): self.__noneChannel}
 
         self.__noneChannel.addUser(self.findOrCreateUser(self.__nick))
+
+    def getNoneChannel(self):
+        return self.__noneChannel
 
     def connect(self):
         """ Attempt to connect to a given server"""
