@@ -146,6 +146,7 @@ class ClientGUI(ClientConsole):
         """ Redraw the users window on screen"""
         self.__userWin.clear()
         all_users = self._client.getChannels()[self._client.currentChannel()]
+        all_users.sort()
         for i in range(0, min(len(all_users), self.__userWin.getmaxyx()[0])):
             self.__userWin.addstr(all_users[i] + "\n")
 
@@ -158,6 +159,7 @@ class ClientGUI(ClientConsole):
         """ Redraw the channels window"""
         self.__channelWin.clear()
         all_chans = self._client.getChannels().keys()
+        all_chans.sort()
         for i in range(0, min(len(all_chans), self.__channelWin.getmaxyx()[0])):
             cur = self._client.currentChannel() == all_chans[i]
             if cur:

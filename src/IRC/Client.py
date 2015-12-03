@@ -21,7 +21,9 @@ from IRC.GUI import ClientGUI, ClientConsole
 
 def unique(items):
     """ Return list of unique items in list"""
-    return list(unique_everseen(items))
+    u = list(unique_everseen(items))
+    u.sort()
+    return u
 
 
 class CommandParseError(Exception):
@@ -230,6 +232,7 @@ class CommandProcessor(object):
         ]
 
     def __helpCmd(self, client):
+        """ Notify client of potential commands """
         client.notify("#### HELP COMMANDS ####")
         for c in self.__cmds:
             client.notify(
@@ -282,7 +285,8 @@ class CommandProcessor(object):
             client.notify("*** Already in {chan} ***".format(chan=chan))
         if chan in client.getChannels():
             client.setChannel(chan)
-            client.notify("*** Migrated to {chan} ***".format(chan=chan))
+            if not client.isGUI():
+                client.notify("*** Migrated to {chan} ***".format(chan=chan))
         else:
             client.notify(
                 "*** You aren't a member of {chan} ***".format(
@@ -389,6 +393,10 @@ class IRCClient(IRC.Handler.IRCHandler):
     def getChats(self):
         """ Return a dictionary of chat messages for rooms"""
         return self.__chats
+
+    def isGUI(self):
+        """ Returns if GUI enabled """
+        return self.__gui.isGUI()
 
     def updateChat(self, msg, channels=None):
         """ Update the corresponding chat messages
@@ -557,13 +565,13 @@ class IRCClient(IRC.Handler.IRCHandler):
         for c in channels:
             self.__channels[c].append(src)
             self.__joined.append(c)
-            unique(self.__joined)
-            unique(self.__channels[c])
+            self.__joined = unique(self.__joined)
+            self.__channels[c] = unique(self.__channels[c])
 
         if src == self.__nick:
             self.notify(
-                "*** You joined the channel {channels}".format(
-                    channels=channels
+                "*** You joined the channel(s) {channels}".format(
+                    channels=",".join(channels)
                 )
             )
         else:
