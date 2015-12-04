@@ -26,8 +26,9 @@ cd rfc && make
 
 ## Project Details
 - **irc_server**  
-  The server process that provides a platform that can be connected to by multiple IRC clients.
+The server process that provides a platform that can be connected to by multiple IRC clients.
 - **irc_client**  
+  Note: The client has the entrypoint: src/IRC/Client.py:main and not a specific script. This allows easy use of the client for creation of bots.  
   The client process that gives an easy to use interface to chat with other users on the same server. The client can be invoked with `--gui` for an ncurses interface. For a list of full commands in the IRC client type `/help`.
 - **irc_bot**  
   Effectively a spam bot. This invokes 100 randomly generated commands to test the [coverage](https://codecov.io/github/crzysdrs/CS594IRC?branch=master) of a client and server pair.
