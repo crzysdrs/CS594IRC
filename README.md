@@ -3,6 +3,8 @@
 
 # CS594IRC
 
+Mitch Souders
+
 This project is a simple IRC server and client combination that is similar to the existing [RFC1459](https://tools.ietf.org/html/rfc1459). The primary differences are the absence of federated connections between IRC servers and the usage of JSON in the basic IRC communication protocol. For more details about the underlying protocol, see the (unformatted) [RFC](rfc/rfc.mkd).
 
 ## Installation Instructions
