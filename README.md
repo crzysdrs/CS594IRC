@@ -31,3 +31,7 @@ cd rfc && make
   Effectively a spam bot. This invokes 100 randomly generated commands to test the [coverage](https://codecov.io/github/crzysdrs/CS594IRC?branch=master) of a client and server pair.
 - **math_bot**  
   A basic bot that responds to simple math equations when messaged directly at `mathbot` or any messages sent to `#math`.
+
+## Note about Code Coverage
+
+The code coverage stats could be higher if there was an easy way to automatically run the ncurses GUI as that is the primary cause of the lower coverage results.
