@@ -194,6 +194,8 @@ class IRCServer(IRC.Handler.IRCHandler):
         self.__users = {}
         self.__running = False
         self.__last_ping = 0
+        self.__ping_time_step = 0
+        self.__time_steps = 0
         self.__server = None
 
     def connect(self):
@@ -274,7 +276,12 @@ class IRCServer(IRC.Handler.IRCHandler):
         Send out pings
         Clean out unused rooms
         """
-        if time.time() - self.__last_ping > 2:
+        deltaTime = time.time() - self.__last_ping
+        deltaStep = self.__time_steps - self.__ping_time_step
+        self.__time_steps += 1
+
+        if deltaTime > 2 and deltaStep > 2:
+            self.__ping_time_step = self.__time_steps
             #logging.info("Verifying Pongs/Sending Pings")
             for client in self.__users.values():
                 if client.unansweredPing():
